@@ -18,6 +18,8 @@
 .env.test.local
 .env.production.local
 
+sipandai-a67d1-55ba9cc811c9.json
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

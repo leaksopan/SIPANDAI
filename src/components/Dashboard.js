@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
+import useUserRole from '../hooks/useUserRole';
+import FileManagerTab from './FileManagerTab';
+import UserManagement from './UserManagement';
+import StaffApplicationForm from './StaffApplicationForm';
+import ApplicationManagement from './ApplicationManagement';
 
 const Dashboard = () => {
   const { user, handleLogout } = useAuth();
+  const { userRole, getRoleLabel, loading: roleLoading, isSuperAdmin, isKepalaBidang, isGuest } = useUserRole();
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   if (!user) {
     return null;
@@ -65,14 +72,32 @@ const Dashboard = () => {
               }}
             />
             <div style={{ textAlign: 'right' }}>
-              <p style={{ 
-                margin: 0, 
-                fontWeight: '600', 
-                color: '#1f2937',
-                fontSize: '14px' 
-              }}>
-                {user.displayName}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                <p style={{ 
+                  margin: 0, 
+                  fontWeight: '600', 
+                  color: '#1f2937',
+                  fontSize: '14px' 
+                }}>
+                  {user.displayName}
+                </p>
+                {!roleLoading && userRole && (
+                  <span style={{
+                    backgroundColor: userRole.role === 'super_admin' ? '#dc2626' : 
+                                   userRole.role === 'kepala_bidang' ? '#2563eb' : 
+                                   userRole.role === 'staff' ? '#16a34a' : 
+                                   userRole.role === 'guest' ? '#9333ea' : '#6b7280',
+                    color: 'white',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    textTransform: 'uppercase'
+                  }}>
+                    {getRoleLabel(userRole.role)}
+                  </span>
+                )}
+              </div>
               <p style={{ 
                 margin: 0, 
                 fontSize: '12px', 
@@ -110,53 +135,148 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Navigation Tabs */}
       <div style={{
         backgroundColor: 'white',
         borderRadius: '12px',
         boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-        padding: '48px',
-        textAlign: 'center'
+        marginBottom: '24px',
+        padding: '0'
       }}>
         <div style={{
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '24px'
+          borderBottom: '1px solid #e5e7eb'
         }}>
-          {/* Welcome Icon */}
-          <div style={{
-            width: '80px',
-            height: '80px',
-            backgroundColor: '#dbeafe',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '36px'
-          }}>
-            👋
-          </div>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            style={{
+              padding: '16px 24px',
+              backgroundColor: activeTab === 'dashboard' ? '#3b82f6' : 'transparent',
+              color: activeTab === 'dashboard' ? 'white' : '#6b7280',
+              border: 'none',
+              borderRadius: '12px 0 0 0',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '500',
+              transition: 'all 0.2s',
+              flex: 1
+            }}
+          >
+            🏠 Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('filemanager')}
+            style={{
+              padding: '16px 24px',
+              backgroundColor: activeTab === 'filemanager' ? '#3b82f6' : 'transparent',
+              color: activeTab === 'filemanager' ? 'white' : '#6b7280',
+              border: 'none',
+              borderRadius: isSuperAdmin ? '0' : '0 12px 0 0',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '500',
+              transition: 'all 0.2s',
+              flex: 1
+            }}
+          >
+            📚 Arsip Digital
+          </button>
           
-          {/* Welcome Message */}
-          <div>
-            <h2 style={{
-              fontSize: '32px',
-              fontWeight: '700',
-              color: '#1f2937',
-              margin: '0 0 12px 0'
+          {(isSuperAdmin || isKepalaBidang) && (
+            <button
+              onClick={() => setActiveTab('applications')}
+              style={{
+                padding: '16px 24px',
+                backgroundColor: activeTab === 'applications' ? '#3b82f6' : 'transparent',
+                color: activeTab === 'applications' ? 'white' : '#6b7280',
+                border: 'none',
+                borderRadius: isSuperAdmin ? '0' : '0 12px 0 0',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                flex: 1
+              }}
+            >
+              📋 Aplikasi Staff
+            </button>
+          )}
+          
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('usermanagement')}
+              style={{
+                padding: '16px 24px',
+                backgroundColor: activeTab === 'usermanagement' ? '#3b82f6' : 'transparent',
+                color: activeTab === 'usermanagement' ? 'white' : '#6b7280',
+                border: 'none',
+                borderRadius: '0 12px 0 0',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                flex: 1
+              }}
+            >
+              👥 User Management
+            </button>
+          )}
+
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'dashboard' && (
+        <>
+          {isGuest ? (
+            <StaffApplicationForm />
+          ) : (
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+              padding: '48px',
+              textAlign: 'center'
             }}>
-              Halo, {user.displayName?.split(' ')[0] || 'User'}!
-            </h2>
-            <p style={{
-              fontSize: '18px',
-              color: '#6b7280',
-              margin: 0,
-              maxWidth: '400px'
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '24px'
             }}>
-              Selamat datang di SIPANDAI. Semoga hari Anda menyenangkan!
-            </p>
-          </div>
+              {/* Welcome Icon */}
+              <div style={{
+                width: '80px',
+                height: '80px',
+                backgroundColor: '#dbeafe',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '36px'
+              }}>
+                👋
+              </div>
+              
+              {/* Welcome Message */}
+              <div>
+                <h2 style={{
+                  fontSize: '32px',
+                  fontWeight: '700',
+                  color: '#1f2937',
+                  margin: '0 0 12px 0'
+                }}>
+                  Halo, {user.displayName?.split(' ')[0] || 'User'}!
+                </h2>
+                <p style={{
+                  fontSize: '18px',
+                  color: '#6b7280',
+                  margin: 0,
+                  maxWidth: '400px'
+                }}>
+                  Selamat datang di SIPANDAI. Semoga hari Anda menyenangkan!
+                </p>
+              </div>
 
           {/* Quick Stats atau Info Cards */}
           <div style={{
@@ -236,8 +356,26 @@ const Dashboard = () => {
               </p>
             </div>
           </div>
-        </div>
-      </div>
+             </div>
+             </div>
+           )}
+         </>
+      )}
+
+      {/* File Manager Tab */}
+      {activeTab === 'filemanager' && (
+        <FileManagerTab />
+      )}
+
+      {/* Application Management Tab */}
+      {activeTab === 'applications' && (
+        <ApplicationManagement />
+      )}
+
+      {/* User Management Tab */}
+      {activeTab === 'usermanagement' && (
+        <UserManagement />
+      )}
     </div>
   );
 };

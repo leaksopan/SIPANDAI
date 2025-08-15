@@ -2,16 +2,17 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // Firebase configuration untuk project SIPANDAI
 const firebaseConfig = {
-  apiKey: "AIzaSyAXJtOJzFN5J-5n4lF12wBi6Z_35Ar63ks",
-  authDomain: "sipandai-a67d1.firebaseapp.com",
-  projectId: "sipandai-a67d1",
-  storageBucket: "sipandai-a67d1.firebasestorage.app",
-  messagingSenderId: "324713224664",
-  appId: "1:324713224664:web:762971aca98db8a3dd7aad",
-  measurementId: "G-Q8GD4V8C0J"
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
@@ -21,5 +22,6 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 export default app;

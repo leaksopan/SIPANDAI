@@ -105,7 +105,7 @@ const LoginButton = () => {
         </div>
       )}
       <button
-        onClick={handleGoogleLogin}
+        onClick={() => handleGoogleLogin().catch(console.error)}
         style={{
           display: 'flex',
           alignItems: 'center',
