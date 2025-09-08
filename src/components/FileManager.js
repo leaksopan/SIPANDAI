@@ -31,6 +31,8 @@ const FileManager = () => {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Load files dan folders saat komponen dimount atau folder berubah
   useEffect(() => {
@@ -327,10 +329,38 @@ const FileManager = () => {
     });
   };
 
+  const toJsDate = (d) => {
+    if (!d) return null;
+    if (typeof d?.toDate === 'function') return d.toDate();
+    if (typeof d?.seconds === 'number') return new Date(d.seconds * 1000);
+    return new Date(d);
+  };
+
+  const isWithinDateRange = (d) => {
+    const fileDate = toJsDate(d);
+    if (!fileDate || Number.isNaN(fileDate.getTime())) return false;
+
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      if (fileDate < start) return false;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      if (fileDate > end) return false;
+    }
+
+    return true;
+  };
+
   // Filter files berdasarkan search term
-  const filteredFiles = files.filter(file =>
-    file.originalName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredFiles = files.filter(file => {
+    const matchesText = file.originalName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDate = (!startDate && !endDate) ? true : isWithinDateRange(file.createdAt);
+    return matchesText && matchesDate;
+  });
 
   const filteredFolders = folders.filter(folder =>
     folder.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -361,13 +391,45 @@ const FileManager = () => {
 
         {/* Search Bar */}
         <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Cari file atau folder..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input
+              type="text"
+              placeholder="Cari file atau folder..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 min-w-[48px]">Dari</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 min-w-[64px]">Sampai</label>
+              <div className="flex gap-2 w-full">
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    type="button"
+                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
+                    title="Reset filter tanggal"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Upload Section */}

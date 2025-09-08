@@ -1,41 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject 
-} from 'firebase/storage';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  deleteDoc, 
-  doc 
-} from 'firebase/firestore';
-import { storage, db } from '../firebase/config';
-import useAuth from '../hooks/useAuth';
-import useUserRole from '../hooks/useUserRole';
-import './FileManagerTab.css';
+import React, { useState, useEffect } from "react";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
+import { storage, db } from "../firebase/config";
+import useAuth from "../hooks/useAuth";
+import useUserRole from "../hooks/useUserRole";
+import * as XLSX from "xlsx";
+import "./FileManagerTab.css";
 
 const FileManagerTab = () => {
   const { user } = useAuth();
   const { hasPermission, loading: roleLoading } = useUserRole();
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
-  const [currentFolder, setCurrentFolder] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [currentFolder, setCurrentFolder] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [allFiles, setAllFiles] = useState([]);
-  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderName, setNewFolderName] = useState("");
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [viewMode, setViewMode] = useState('grid'); // grid or list
+  const [viewMode, setViewMode] = useState("grid"); // grid or list
   const [selectedItems, setSelectedItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [previewFile, setPreviewFile] = useState(null); // file untuk preview PDF
+  const [csvRows, setCsvRows] = useState([]);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvError, setCsvError] = useState(null);
+  const [xlsxRows, setXlsxRows] = useState([]);
+  const [xlsxLoading, setXlsxLoading] = useState(false);
+  const [xlsxError, setXlsxError] = useState(null);
+  const [xlsxSheets, setXlsxSheets] = useState([]);
+  const [activeSheet, setActiveSheet] = useState(0);
 
   useEffect(() => {
     if (user && !roleLoading) {
@@ -56,29 +68,29 @@ const FileManagerTab = () => {
       if (roleLoading) {
         return;
       }
-      
+
       let filesQuery;
-      
-      if (hasPermission('canAccessAllFiles')) {
+
+      if (hasPermission("canAccessAllFiles")) {
         // Staff, Kepala Bidang, dan Super Admin bisa lihat semua file
-        filesQuery = query(collection(db, 'files'));
+        filesQuery = query(collection(db, "files"));
       } else {
         // Guest hanya bisa lihat file mereka sendiri
         filesQuery = query(
-          collection(db, 'files'),
-          where('userId', '==', user.uid)
+          collection(db, "files"),
+          where("userId", "==", user.uid)
         );
       }
-      
+
       const filesSnapshot = await getDocs(filesQuery);
-      const filesData = filesSnapshot.docs.map(doc => ({
+      const filesData = filesSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
+
       setAllFiles(filesData);
     } catch (error) {
-      console.error('Error loading all files:', error);
+      console.error("Error loading all files:", error);
     }
   };
 
@@ -87,7 +99,7 @@ const FileManagerTab = () => {
     try {
       await Promise.all([loadFiles(), loadFolders()]);
     } catch (error) {
-      console.error('Error loading files and folders:', error);
+      console.error("Error loading files and folders:", error);
     } finally {
       setLoading(false);
     }
@@ -99,33 +111,33 @@ const FileManagerTab = () => {
       if (roleLoading) {
         return;
       }
-      
+
       let filesQuery;
-      
-      if (hasPermission('canAccessAllFiles')) {
+
+      if (hasPermission("canAccessAllFiles")) {
         // Staff, Kepala Bidang, dan Super Admin bisa lihat semua file
         filesQuery = query(
-          collection(db, 'files'),
-          where('folder', '==', currentFolder || '')
+          collection(db, "files"),
+          where("folder", "==", currentFolder || "")
         );
       } else {
         // Guest hanya bisa lihat file mereka sendiri
         filesQuery = query(
-          collection(db, 'files'),
-          where('userId', '==', user.uid),
-          where('folder', '==', currentFolder || '')
+          collection(db, "files"),
+          where("userId", "==", user.uid),
+          where("folder", "==", currentFolder || "")
         );
       }
-      
+
       const filesSnapshot = await getDocs(filesQuery);
-      const filesData = filesSnapshot.docs.map(doc => ({
+      const filesData = filesSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
+
       setFiles(filesData);
     } catch (error) {
-      console.error('Error loading files:', error);
+      console.error("Error loading files:", error);
     }
   };
 
@@ -135,44 +147,44 @@ const FileManagerTab = () => {
       if (roleLoading) {
         return;
       }
-      
+
       let foldersQuery;
-      
-      if (hasPermission('canAccessAllFiles')) {
+
+      if (hasPermission("canAccessAllFiles")) {
         // Staff, Kepala Bidang, dan Super Admin bisa lihat semua folder
         foldersQuery = query(
-          collection(db, 'folders'),
-          where('parentFolder', '==', currentFolder || '')
+          collection(db, "folders"),
+          where("parentFolder", "==", currentFolder || "")
         );
       } else {
         // Guest hanya bisa lihat folder mereka sendiri
         foldersQuery = query(
-          collection(db, 'folders'),
-          where('userId', '==', user.uid),
-          where('parentFolder', '==', currentFolder || '')
+          collection(db, "folders"),
+          where("userId", "==", user.uid),
+          where("parentFolder", "==", currentFolder || "")
         );
       }
-      
+
       const foldersSnapshot = await getDocs(foldersQuery);
-      const foldersData = foldersSnapshot.docs.map(doc => ({
+      const foldersData = foldersSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
+
       setFolders(foldersData);
     } catch (error) {
-      console.error('Error loading folders:', error);
+      console.error("Error loading folders:", error);
     }
   };
 
   const handleFileUpload = async () => {
-    if (!hasPermission('canUploadFiles')) {
-      alert('Anda tidak memiliki permission untuk upload file');
+    if (!hasPermission("canUploadFiles")) {
+      alert("Anda tidak memiliki permission untuk upload file");
       return;
     }
-    
+
     if (!selectedFile) {
-      alert('Pilih file terlebih dahulu');
+      alert("Pilih file terlebih dahulu");
       return;
     }
 
@@ -184,51 +196,53 @@ const FileManagerTab = () => {
     setIsProcessing(true);
     try {
       const fileName = `${Date.now()}_${selectedFile.name}`;
-      const filePath = currentFolder ? `${currentFolder}/${fileName}` : fileName;
+      const filePath = currentFolder
+        ? `${currentFolder}/${fileName}`
+        : fileName;
       const storageRef = ref(storage, `users/${user.uid}/${filePath}`);
-      
+
       const snapshot = await uploadBytes(storageRef, selectedFile);
       const downloadURL = await getDownloadURL(snapshot.ref);
 
-      await addDoc(collection(db, 'files'), {
+      await addDoc(collection(db, "files"), {
         name: selectedFile.name,
         originalName: selectedFile.name,
         size: selectedFile.size,
         type: selectedFile.type,
         url: downloadURL,
         storagePath: snapshot.ref.fullPath,
-        folder: currentFolder || '',
+        folder: currentFolder || "",
         userId: user.uid,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
       setSelectedFile(null);
-      document.getElementById('fileInput').value = '';
-      
+      document.getElementById("fileInput").value = "";
+
       // Reload files dan update allFiles state
       await loadFiles();
-      
+
       // Update allFiles dengan file baru tanpa reload semua
       const newFileData = {
-        id: 'temp_' + Date.now(), // temporary ID
+        id: "temp_" + Date.now(), // temporary ID
         name: selectedFile.name,
         originalName: selectedFile.name,
         size: selectedFile.size,
         type: selectedFile.type,
         url: downloadURL,
         storagePath: snapshot.ref.fullPath,
-        folder: currentFolder || '',
+        folder: currentFolder || "",
         userId: user.uid,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
-      
-      setAllFiles(prev => [newFileData, ...prev]);
-      alert('File berhasil diupload!');
+
+      setAllFiles((prev) => [newFileData, ...prev]);
+      alert("File berhasil diupload!");
     } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Gagal mengupload file');
+      console.error("Error uploading file:", error);
+      alert("Gagal mengupload file");
     } finally {
       setUploading(false);
       setIsProcessing(false);
@@ -236,31 +250,31 @@ const FileManagerTab = () => {
   };
 
   const handleCreateFolder = async () => {
-    if (!hasPermission('canCreateFolders')) {
-      alert('Anda tidak memiliki permission untuk membuat folder');
+    if (!hasPermission("canCreateFolders")) {
+      alert("Anda tidak memiliki permission untuk membuat folder");
       return;
     }
-    
+
     if (!newFolderName.trim()) {
-      alert('Nama folder tidak boleh kosong');
+      alert("Nama folder tidak boleh kosong");
       return;
     }
 
     try {
-      await addDoc(collection(db, 'folders'), {
+      await addDoc(collection(db, "folders"), {
         name: newFolderName,
-        parentFolder: currentFolder || '',
+        parentFolder: currentFolder || "",
         userId: user.uid,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
-      setNewFolderName('');
+      setNewFolderName("");
       setShowCreateFolder(false);
       await loadFolders();
     } catch (error) {
-      console.error('Error creating folder:', error);
-      alert('Gagal membuat folder');
+      console.error("Error creating folder:", error);
+      alert("Gagal membuat folder");
     }
   };
 
@@ -270,69 +284,533 @@ const FileManagerTab = () => {
     try {
       const storageRef = ref(storage, file.storagePath);
       await deleteObject(storageRef);
-      await deleteDoc(doc(db, 'files', file.id));
-      
+      await deleteDoc(doc(db, "files", file.id));
+
       // Update local state tanpa reload semua
       await loadFiles();
-      setAllFiles(prev => prev.filter(f => f.id !== file.id));
-      
-      alert('File berhasil dihapus!');
+      setAllFiles((prev) => prev.filter((f) => f.id !== file.id));
+
+      alert("File berhasil dihapus!");
     } catch (error) {
-      console.error('Error deleting file:', error);
-      alert('Gagal menghapus file');
+      console.error("Error deleting file:", error);
+      alert("Gagal menghapus file");
     }
   };
 
   const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const formatDate = (date) => {
-    if (!date) return '';
-    
+    if (!date) return "";
+
     // Handle Firestore Timestamp
-    if (date.toDate && typeof date.toDate === 'function') {
-      return date.toDate().toLocaleDateString('id-ID');
+    if (date.toDate && typeof date.toDate === "function") {
+      return date.toDate().toLocaleDateString("id-ID");
     }
-    
+
     // Handle Firestore Timestamp with seconds property
     if (date.seconds) {
-      return new Date(date.seconds * 1000).toLocaleDateString('id-ID');
+      return new Date(date.seconds * 1000).toLocaleDateString("id-ID");
     }
-    
+
     // Handle regular Date object or string
-    return new Date(date).toLocaleDateString('id-ID');
+    return new Date(date).toLocaleDateString("id-ID");
+  };
+
+  const toJsDate = (d) => {
+    if (!d) return null;
+    if (typeof d?.toDate === "function") return d.toDate();
+    if (typeof d?.seconds === "number") return new Date(d.seconds * 1000);
+    return new Date(d);
+  };
+
+  const isWithinDateRange = (d) => {
+    const fileDate = toJsDate(d);
+    if (!fileDate || Number.isNaN(fileDate.getTime())) return false;
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      if (fileDate < start) return false;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      if (fileDate > end) return false;
+    }
+    return true;
   };
 
   const getFileIcon = (type) => {
-    if (type.includes('image')) return '🖼️';
-    if (type.includes('pdf')) return '📄';
-    if (type.includes('word')) return '📝';
-    if (type.includes('excel') || type.includes('spreadsheet')) return '📊';
-    if (type.includes('video')) return '🎥';
-    if (type.includes('audio')) return '🎵';
-    return '📁';
+    if (type.includes("image")) return "🖼️";
+    if (type.includes("pdf")) return "📄";
+    if (type.includes("word")) return "📝";
+    if (
+      type.includes("excel") ||
+      type.includes("spreadsheet") ||
+      type.includes("csv")
+    )
+      return "📊";
+    if (type.includes("video")) return "🎥";
+    if (type.includes("audio")) return "🎵";
+    return "📁";
+  };
+
+  const isPdfFile = (file) => {
+    if (!file) return false;
+    const type = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    return type.includes("pdf") || name.endsWith(".pdf");
+  };
+
+  const isImageFile = (file) => {
+    if (!file) return false;
+    const type = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    return (
+      type.includes("image") ||
+      /(\.png|\.jpe?g|\.gif|\.webp|\.bmp|\.svg)$/i.test(name)
+    );
+  };
+
+  const isExcelFile = (file) => {
+    if (!file) return false;
+    const type = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    return (
+      type.includes("sheet") ||
+      type.includes("excel") ||
+      /(\.xlsx|\.xls)$/i.test(name)
+    );
+  };
+
+  const isCsvFile = (file) => {
+    if (!file) return false;
+    const type = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    return type.includes("csv") || /\.csv$/i.test(name);
+  };
+
+  const canPreviewFile = (file) =>
+    isPdfFile(file) ||
+    isImageFile(file) ||
+    isExcelFile(file) ||
+    isCsvFile(file);
+
+  // Simple CSV parser that handles quoted fields and commas inside quotes
+  const parseCsv = (text, maxRows = 200) => {
+    const rows = [];
+    let row = [];
+    let cell = "";
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const next = text[i + 1];
+      if (inQuotes) {
+        if (char === '"') {
+          if (next === '"') {
+            // escaped quote
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cell += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ",") {
+          row.push(cell);
+          cell = "";
+        } else if (char === "\n" || char === "\r") {
+          // handle CRLF and LF
+          if (char === "\r" && next === "\n") i++;
+          row.push(cell);
+          rows.push(row);
+          cell = "";
+          row = [];
+          if (rows.length >= maxRows) break;
+        } else {
+          cell += char;
+        }
+      }
+    }
+    // push last cell/row if any
+    if (cell.length > 0 || row.length > 0) {
+      row.push(cell);
+      rows.push(row);
+    }
+    return rows;
+  };
+
+  // CSV parsing dengan multiple fallback methods
+  useEffect(() => {
+    let cancelled = false;
+    if (previewFile && isCsvFile(previewFile)) {
+      (async () => {
+        try {
+          setCsvLoading(true);
+          setCsvError(null);
+          setCsvRows([]);
+
+          // Method 1: Try direct fetch (might work in some cases)
+          try {
+            const response = await fetch(previewFile.url);
+            if (cancelled) return;
+
+            if (response.ok) {
+              const text = await response.text();
+              if (cancelled) return;
+              setCsvRows(parseCsv(text));
+              return; // Success, exit
+            }
+          } catch (directError) {
+            console.log("Direct fetch failed, trying proxy method...");
+          }
+
+          // Method 2: Try with CORS proxy
+          try {
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(
+              previewFile.url
+            )}`;
+            const response = await fetch(proxyUrl);
+            if (cancelled) return;
+
+            if (response.ok) {
+              const text = await response.text();
+              if (cancelled) return;
+              setCsvRows(parseCsv(text));
+              return; // Success, exit
+            }
+          } catch (proxyError) {
+            console.log("Proxy fetch failed, showing fallback viewer...");
+          }
+
+          // Method 3: If all else fails, show error and fallback to iframe
+          throw new Error(
+            "Tidak dapat memuat CSV untuk preview tabel, menggunakan viewer eksternal"
+          );
+        } catch (err) {
+          if (cancelled) return;
+          setCsvError(err.message || String(err));
+        } finally {
+          if (!cancelled) setCsvLoading(false);
+        }
+      })();
+    } else {
+      // reset when not CSV or closing
+      setCsvRows([]);
+      setCsvLoading(false);
+      setCsvError(null);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [previewFile]);
+
+  // XLSX parsing dengan multiple fallback methods
+  useEffect(() => {
+    let cancelled = false;
+    if (previewFile && isExcelFile(previewFile)) {
+      (async () => {
+        try {
+          setXlsxLoading(true);
+          setXlsxError(null);
+          setXlsxRows([]);
+
+          // Method 1: Try direct fetch (might work in some cases)
+          try {
+            console.log("🔄 XLSX Preview: Trying Method 1 - Direct Fetch");
+            const response = await fetch(previewFile.url);
+            if (cancelled) return;
+
+            if (response.ok) {
+              const arrayBuffer = await response.arrayBuffer();
+              if (cancelled) return;
+
+              const workbook = XLSX.read(arrayBuffer, { type: "array" });
+
+              // Parse all sheets with merged cells support
+              const sheetsData = workbook.SheetNames.map((sheetName, index) => {
+                const worksheet = workbook.Sheets[sheetName];
+
+                // Get sheet range
+                const range = XLSX.utils.decode_range(
+                  worksheet["!ref"] || "A1:A1"
+                );
+
+                // Get merged cells information
+                const merges = worksheet["!merges"] || [];
+                console.log(
+                  `📊 Method 1 - Found ${merges.length} merged cell ranges in sheet "${sheetName}":`,
+                  merges
+                );
+                const mergedCells = new Set();
+                const mergeMap = new Map();
+
+                // Process merged cells
+                merges.forEach((merge) => {
+                  const startRow = merge.s.r;
+                  const endRow = merge.e.r;
+                  const startCol = merge.s.c;
+                  const endCol = merge.e.c;
+
+                  // Mark all cells in merge range except top-left
+                  for (let r = startRow; r <= endRow; r++) {
+                    for (let c = startCol; c <= endCol; c++) {
+                      const cellKey = `${r}-${c}`;
+                      if (r === startRow && c === startCol) {
+                        // Top-left cell gets merge info
+                        mergeMap.set(cellKey, {
+                          rowspan: endRow - startRow + 1,
+                          colspan: endCol - startCol + 1,
+                          isMergeStart: true,
+                        });
+                      } else {
+                        // Other cells are marked as merged (hidden)
+                        mergedCells.add(cellKey);
+                      }
+                    }
+                  }
+                });
+
+                const jsonData = [];
+
+                // Parse row by row dengan merged cells
+                for (
+                  let rowNum = range.s.r;
+                  rowNum <= Math.min(range.e.r, range.s.r + 199);
+                  rowNum++
+                ) {
+                  const row = [];
+                  for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
+                    const cellKey = `${rowNum}-${colNum}`;
+                    const cellAddress = XLSX.utils.encode_cell({
+                      r: rowNum,
+                      c: colNum,
+                    });
+                    const cell = worksheet[cellAddress];
+                    const cellValue = cell ? cell.w || cell.v || "" : "";
+
+                    if (mergedCells.has(cellKey)) {
+                      // Skip merged cells (will be handled by parent)
+                      row.push({ hidden: true });
+                    } else if (mergeMap.has(cellKey)) {
+                      // Merged cell start
+                      const mergeInfo = mergeMap.get(cellKey);
+                      row.push({
+                        value: cellValue,
+                        rowspan: mergeInfo.rowspan,
+                        colspan: mergeInfo.colspan,
+                        isMerged: true,
+                      });
+                    } else {
+                      // Normal cell
+                      row.push({ value: cellValue });
+                    }
+                  }
+                  jsonData.push(row);
+                }
+
+                return {
+                  name: sheetName,
+                  data: jsonData,
+                  index: index,
+                };
+              });
+
+              setXlsxSheets(sheetsData);
+              setActiveSheet(0);
+              setXlsxRows(sheetsData[0]?.data || []);
+              console.log(
+                "✅ XLSX Preview: Method 1 completed with merged cells support"
+              );
+              console.log(
+                "📋 Parsed sheets:",
+                sheetsData.map((s) => ({ name: s.name, rows: s.data.length }))
+              );
+              return; // Success, exit
+            }
+          } catch (directError) {
+            console.log(
+              "❌ XLSX Preview: Method 1 failed, trying proxy method...",
+              directError
+            );
+          }
+
+          // Method 2: Try with CORS proxy
+          try {
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(
+              previewFile.url
+            )}`;
+            const response = await fetch(proxyUrl);
+            if (cancelled) return;
+
+            if (response.ok) {
+              const arrayBuffer = await response.arrayBuffer();
+              if (cancelled) return;
+
+              const workbook = XLSX.read(arrayBuffer, { type: "array" });
+
+              // Parse all sheets with merged cells support (same as Method 1)
+              const sheetsData = workbook.SheetNames.map((sheetName, index) => {
+                const worksheet = workbook.Sheets[sheetName];
+
+                // Get sheet range
+                const range = XLSX.utils.decode_range(
+                  worksheet["!ref"] || "A1:A1"
+                );
+
+                // Get merged cells information
+                const merges = worksheet["!merges"] || [];
+                console.log(
+                  `📊 Method 2 - Found ${merges.length} merged cell ranges in sheet "${sheetName}":`,
+                  merges
+                );
+                const mergedCells = new Set();
+                const mergeMap = new Map();
+
+                // Process merged cells
+                merges.forEach((merge) => {
+                  const startRow = merge.s.r;
+                  const endRow = merge.e.r;
+                  const startCol = merge.s.c;
+                  const endCol = merge.e.c;
+
+                  // Mark all cells in merge range except top-left
+                  for (let r = startRow; r <= endRow; r++) {
+                    for (let c = startCol; c <= endCol; c++) {
+                      const cellKey = `${r}-${c}`;
+                      if (r === startRow && c === startCol) {
+                        // Top-left cell gets merge info
+                        mergeMap.set(cellKey, {
+                          rowspan: endRow - startRow + 1,
+                          colspan: endCol - startCol + 1,
+                          isMergeStart: true,
+                        });
+                      } else {
+                        // Other cells are marked as merged (hidden)
+                        mergedCells.add(cellKey);
+                      }
+                    }
+                  }
+                });
+
+                const jsonData = [];
+
+                // Parse row by row dengan merged cells
+                for (
+                  let rowNum = range.s.r;
+                  rowNum <= Math.min(range.e.r, range.s.r + 199);
+                  rowNum++
+                ) {
+                  const row = [];
+                  for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
+                    const cellKey = `${rowNum}-${colNum}`;
+                    const cellAddress = XLSX.utils.encode_cell({
+                      r: rowNum,
+                      c: colNum,
+                    });
+                    const cell = worksheet[cellAddress];
+                    const cellValue = cell ? cell.w || cell.v || "" : "";
+
+                    if (mergedCells.has(cellKey)) {
+                      // Skip merged cells (will be handled by parent)
+                      row.push({ hidden: true });
+                    } else if (mergeMap.has(cellKey)) {
+                      // Merged cell start
+                      const mergeInfo = mergeMap.get(cellKey);
+                      row.push({
+                        value: cellValue,
+                        rowspan: mergeInfo.rowspan,
+                        colspan: mergeInfo.colspan,
+                        isMerged: true,
+                      });
+                    } else {
+                      // Normal cell
+                      row.push({ value: cellValue });
+                    }
+                  }
+                  jsonData.push(row);
+                }
+
+                return {
+                  name: sheetName,
+                  data: jsonData,
+                  index: index,
+                };
+              });
+
+              setXlsxSheets(sheetsData);
+              setActiveSheet(0);
+              setXlsxRows(sheetsData[0]?.data || []);
+              console.log(
+                "✅ XLSX Preview: Method 2 completed with merged cells support"
+              );
+              return; // Success, exit
+            }
+          } catch (proxyError) {
+            console.log(
+              "❌ XLSX Preview: Method 2 failed, showing fallback viewer...",
+              proxyError
+            );
+          }
+
+          // Method 3: If all else fails, show error and fallback to iframe
+          console.log(
+            "❌ XLSX Preview: All methods failed, using fallback iframe viewer"
+          );
+          throw new Error(
+            "Tidak dapat memuat XLSX untuk preview tabel, menggunakan viewer eksternal"
+          );
+        } catch (err) {
+          if (cancelled) return;
+          setXlsxError(err.message || String(err));
+        } finally {
+          if (!cancelled) setXlsxLoading(false);
+        }
+      })();
+    } else {
+      // reset when not XLSX or closing
+      setXlsxRows([]);
+      setXlsxLoading(false);
+      setXlsxError(null);
+      setXlsxSheets([]);
+      setActiveSheet(0);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [previewFile]);
+
+  // Handle sheet change
+  const handleSheetChange = (sheetIndex) => {
+    setActiveSheet(sheetIndex);
+    setXlsxRows(xlsxSheets[sheetIndex]?.data || []);
   };
 
   const getBreadcrumb = () => {
-    if (!currentFolder) return ['Beranda'];
-    return ['Beranda', ...currentFolder.split('/')];
+    if (!currentFolder) return ["Beranda"];
+    return ["Beranda", ...currentFolder.split("/")];
   };
 
   // Jika ada search term, cari di semua files. Jika tidak, tampilkan files di folder aktif
-  const filteredFiles = searchTerm 
-    ? allFiles.filter(file => 
-        file.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : files.filter(file => 
-        file.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const filteredFiles = (searchTerm ? allFiles : files).filter((file) => {
+    const matchesText = file.name
+      ?.toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesDate =
+      !startDate && !endDate ? true : isWithinDateRange(file.createdAt);
+    return matchesText && matchesDate;
+  });
 
-  const filteredFolders = folders.filter(folder => 
+  const filteredFolders = folders.filter((folder) =>
     folder.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -356,13 +834,13 @@ const FileManagerTab = () => {
             {getBreadcrumb().map((crumb, index) => (
               <span key={index}>
                 {index > 0 && <span className="breadcrumb-separator">›</span>}
-                <button 
+                <button
                   className="breadcrumb-item"
                   onClick={() => {
                     if (index === 0) {
-                      setCurrentFolder('');
+                      setCurrentFolder("");
                     } else {
-                      const path = getBreadcrumb().slice(1, index).join('/');
+                      const path = getBreadcrumb().slice(1, index).join("/");
                       setCurrentFolder(path);
                     }
                   }}
@@ -384,16 +862,58 @@ const FileManagerTab = () => {
             />
             <span className="search-icon">🔍</span>
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ color: "#7f8c8d", fontSize: "0.9rem" }}>Dari</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{
+                  padding: "6px 8px",
+                  border: "1px solid #e1e8ed",
+                  borderRadius: "6px",
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ color: "#7f8c8d", fontSize: "0.9rem" }}>
+                Sampai
+              </span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{
+                  padding: "6px 8px",
+                  border: "1px solid #e1e8ed",
+                  borderRadius: "6px",
+                }}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="btn btn-secondary"
+                title="Reset filter tanggal"
+              >
+                Reset
+              </button>
+            )}
+          </div>
           <div className="view-toggle">
-            <button 
-              className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-              onClick={() => setViewMode('grid')}
+            <button
+              className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+              onClick={() => setViewMode("grid")}
             >
               ⊞
             </button>
-            <button 
-              className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => setViewMode('list')}
+            <button
+              className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+              onClick={() => setViewMode("list")}
             >
               ☰
             </button>
@@ -404,32 +924,34 @@ const FileManagerTab = () => {
       {/* Toolbar */}
       <div className="toolbar">
         <div className="toolbar-left">
-          {hasPermission('canCreateFolders') && (
-            <button 
+          {hasPermission("canCreateFolders") && (
+            <button
               className="btn btn-primary"
               onClick={() => setShowCreateFolder(true)}
             >
               📁 Buat Folder
             </button>
           )}
-          {hasPermission('canUploadFiles') && (
+          {hasPermission("canUploadFiles") && (
             <label className="btn btn-secondary">
               📤 Upload File
               <input
                 id="fileInput"
                 type="file"
                 onChange={(e) => setSelectedFile(e.target.files[0])}
-                style={{ display: 'none' }}
+                style={{ display: "none" }}
               />
             </label>
           )}
-          {selectedFile && hasPermission('canUploadFiles') && (
-            <button 
+          {selectedFile && hasPermission("canUploadFiles") && (
+            <button
               className="btn btn-success"
               onClick={handleFileUpload}
               disabled={uploading || isProcessing}
             >
-              {uploading || isProcessing ? '⏳ Uploading...' : '✅ Konfirmasi Upload'}
+              {uploading || isProcessing
+                ? "⏳ Uploading..."
+                : "✅ Konfirmasi Upload"}
             </button>
           )}
         </div>
@@ -450,12 +972,14 @@ const FileManagerTab = () => {
         ) : (
           <div className={`items-container ${viewMode}`}>
             {/* Folders */}
-            {filteredFolders.map(folder => (
-              <div 
-                key={folder.id} 
+            {filteredFolders.map((folder) => (
+              <div
+                key={folder.id}
                 className="item folder-item"
                 onDoubleClick={() => {
-                  const newPath = currentFolder ? `${currentFolder}/${folder.name}` : folder.name;
+                  const newPath = currentFolder
+                    ? `${currentFolder}/${folder.name}`
+                    : folder.name;
                   setCurrentFolder(newPath);
                 }}
               >
@@ -468,7 +992,7 @@ const FileManagerTab = () => {
             ))}
 
             {/* Files */}
-            {filteredFiles.map(file => (
+            {filteredFiles.map((file) => (
               <div key={file.id} className="item file-item">
                 <div className="item-icon">{getFileIcon(file.type)}</div>
                 <div className="item-info">
@@ -481,10 +1005,20 @@ const FileManagerTab = () => {
                   </div>
                 </div>
                 <div className="item-actions">
-                  {hasPermission('canDownloadFiles') && (
-                    <a 
-                      href={file.url} 
-                      target="_blank" 
+                  {canPreviewFile(file) && (
+                    <button
+                      onClick={() => setPreviewFile(file)}
+                      className="action-btn"
+                      title="Preview"
+                      style={{ background: "#6366f1", color: "white" }}
+                    >
+                      👁️
+                    </button>
+                  )}
+                  {hasPermission("canDownloadFiles") && (
+                    <a
+                      href={file.url}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="action-btn download"
                       title="Download"
@@ -492,8 +1026,8 @@ const FileManagerTab = () => {
                       ⬇️
                     </a>
                   )}
-                  {hasPermission('canDeleteFiles') && (
-                    <button 
+                  {hasPermission("canDeleteFiles") && (
+                    <button
                       onClick={() => handleDeleteFile(file)}
                       className="action-btn delete"
                       title="Hapus"
@@ -509,7 +1043,10 @@ const FileManagerTab = () => {
               <div className="empty-state">
                 <div className="empty-icon">📂</div>
                 <h3>Folder kosong</h3>
-                <p>Belum ada file atau folder di sini. Mulai dengan mengupload file atau membuat folder baru.</p>
+                <p>
+                  Belum ada file atau folder di sini. Mulai dengan mengupload
+                  file atau membuat folder baru.
+                </p>
               </div>
             )}
           </div>
@@ -522,7 +1059,7 @@ const FileManagerTab = () => {
           <div className="modal">
             <div className="modal-header">
               <h3>Buat Folder Baru</h3>
-              <button 
+              <button
                 className="close-btn"
                 onClick={() => setShowCreateFolder(false)}
               >
@@ -536,21 +1073,18 @@ const FileManagerTab = () => {
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 className="folder-input"
-                onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
+                onKeyPress={(e) => e.key === "Enter" && handleCreateFolder()}
                 autoFocus
               />
             </div>
             <div className="modal-footer">
-              <button 
+              <button
                 className="btn btn-secondary"
                 onClick={() => setShowCreateFolder(false)}
               >
                 Batal
               </button>
-              <button 
-                className="btn btn-primary"
-                onClick={handleCreateFolder}
-              >
+              <button className="btn btn-primary" onClick={handleCreateFolder}>
                 Buat Folder
               </button>
             </div>
@@ -565,17 +1099,487 @@ const FileManagerTab = () => {
             <span className="file-icon">{getFileIcon(selectedFile.type)}</span>
             <div className="file-details">
               <div className="file-name">{selectedFile.name}</div>
-              <div className="file-size">{formatFileSize(selectedFile.size)}</div>
+              <div className="file-size">
+                {formatFileSize(selectedFile.size)}
+              </div>
             </div>
-            <button 
+            <button
               className="remove-btn"
               onClick={() => {
                 setSelectedFile(null);
-                document.getElementById('fileInput').value = '';
+                document.getElementById("fileInput").value = "";
               }}
             >
               ✕
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {previewFile && (
+        <div className="modal-overlay" onClick={() => setPreviewFile(null)}>
+          <div
+            className="modal"
+            style={{
+              width: "90vw",
+              maxWidth: "1200px",
+              height: "80vh",
+              maxHeight: "800px",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>Preview: {previewFile.name}</h3>
+              <button
+                className="close-btn"
+                onClick={() => setPreviewFile(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <div
+              className="modal-body"
+              style={{ padding: 0, flex: 1, overflow: "hidden" }}
+            >
+              {isPdfFile(previewFile) && (
+                <iframe
+                  title={`preview-pdf-${previewFile.id}`}
+                  src={`${previewFile.url}#toolbar=1&navpanes=0&view=FitH`}
+                  style={{ width: "100%", height: "100%", border: "none" }}
+                />
+              )}
+              {isImageFile(previewFile) && (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#111",
+                  }}
+                >
+                  <img
+                    src={previewFile.url}
+                    alt={previewFile.name}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
+              )}
+              {isExcelFile(previewFile) && (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    padding: "1rem",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {xlsxLoading && (
+                    <div style={{ textAlign: "center", padding: "2rem" }}>
+                      <div
+                        style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}
+                      >
+                        ⏳
+                      </div>
+                      <div>Memuat Excel...</div>
+                    </div>
+                  )}
+
+                  {!xlsxLoading && xlsxRows.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        height: "100%",
+                      }}
+                    >
+                      {/* Success message and sheet selector */}
+                      <div style={{ marginBottom: "1rem", flexShrink: 0 }}>
+                        <div
+                          style={{
+                            padding: "8px 12px",
+                            backgroundColor: "#dcfce7",
+                            borderRadius: "6px",
+                            border: "1px solid #22c55e",
+                            fontSize: "0.9rem",
+                            color: "#166534",
+                            marginBottom:
+                              xlsxSheets.length > 1 ? "0.5rem" : "0",
+                          }}
+                        >
+                          ✅ <strong>Excel berhasil dimuat!</strong> Menampilkan{" "}
+                          {xlsxRows.length} baris data.
+                        </div>
+
+                        {/* Sheet selector jika ada multiple sheets */}
+                        {xlsxSheets.length > 1 && (
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "4px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {xlsxSheets.map((sheet, index) => (
+                              <button
+                                key={index}
+                                onClick={() => handleSheetChange(index)}
+                                style={{
+                                  padding: "4px 8px",
+                                  fontSize: "0.8rem",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "4px",
+                                  backgroundColor:
+                                    activeSheet === index
+                                      ? "#3b82f6"
+                                      : "#ffffff",
+                                  color:
+                                    activeSheet === index
+                                      ? "#ffffff"
+                                      : "#374151",
+                                  cursor: "pointer",
+                                  transition: "all 0.2s ease",
+                                }}
+                                onMouseOver={(e) => {
+                                  if (activeSheet !== index) {
+                                    e.target.style.backgroundColor = "#f3f4f6";
+                                  }
+                                }}
+                                onMouseOut={(e) => {
+                                  if (activeSheet !== index) {
+                                    e.target.style.backgroundColor = "#ffffff";
+                                  }
+                                }}
+                              >
+                                {sheet.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Table container dengan proper scroll */}
+                      <div
+                        style={{
+                          flex: 1,
+                          overflow: "hidden",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "6px",
+                          backgroundColor: "#ffffff",
+                          position: "relative",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            overflow: "auto",
+                            maxHeight: "100%",
+                          }}
+                        >
+                          <table
+                            style={{
+                              width: "max-content",
+                              minWidth: "100%",
+                              borderCollapse: "collapse",
+                              fontSize: "0.8rem",
+                              tableLayout: "fixed",
+                            }}
+                          >
+                            <tbody>
+                              {xlsxRows.map((row, idx) => (
+                                <tr key={idx}>
+                                  {row.map((cell, j) => {
+                                    // Skip hidden cells (part of merged cells)
+                                    if (cell?.hidden) return null;
+
+                                    const cellValue =
+                                      typeof cell === "object"
+                                        ? cell.value
+                                        : cell;
+                                    const cellLength = cellValue?.length || 10;
+
+                                    return (
+                                      <td
+                                        key={j}
+                                        rowSpan={cell?.rowspan || 1}
+                                        colSpan={cell?.colspan || 1}
+                                        style={{
+                                          border: "1px solid #e5e7eb",
+                                          padding: "8px 12px",
+                                          whiteSpace: "pre-wrap",
+                                          wordBreak: "break-word",
+                                          overflowWrap: "break-word",
+                                          width: `${Math.max(
+                                            150,
+                                            Math.min(300, cellLength * 8)
+                                          )}px`,
+                                          maxWidth: "300px",
+                                          minWidth: "120px",
+                                          fontWeight:
+                                            idx === 0 ? "600" : "normal",
+                                          fontSize: "0.8rem",
+                                          lineHeight: "1.4",
+                                          verticalAlign: "top",
+                                          boxSizing: "border-box",
+                                          textAlign: cell?.isMerged
+                                            ? "center"
+                                            : "left",
+                                          backgroundColor: cell?.isMerged
+                                            ? idx === 0
+                                              ? "#f0f8ff"
+                                              : "#fafafa"
+                                            : idx === 0
+                                            ? "#f8fafc"
+                                            : idx % 2 === 0
+                                            ? "#ffffff"
+                                            : "#f9fafb",
+                                        }}
+                                      >
+                                        {cellValue || ""}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!xlsxLoading && xlsxError && (
+                    <div>
+                      <div
+                        style={{
+                          marginBottom: "1rem",
+                          padding: "12px",
+                          backgroundColor: "#fef3c7",
+                          borderRadius: "8px",
+                          border: "1px solid #f59e0b",
+                        }}
+                      >
+                        <div style={{ color: "#92400e", fontSize: "0.9rem" }}>
+                          ⚠️ <strong>Fallback Viewer:</strong> {xlsxError}
+                        </div>
+                      </div>
+
+                      {/* Fallback ke Microsoft Office Online viewer sebagai alternatif */}
+                      <iframe
+                        title={`preview-xlsx-fallback-${previewFile.id}`}
+                        src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
+                          previewFile.url
+                        )}`}
+                        style={{
+                          width: "100%",
+                          height: "calc(100% - 80px)",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                          backgroundColor: "#ffffff",
+                        }}
+                        onLoad={() =>
+                          console.log("Fallback XLSX preview loaded")
+                        }
+                        onError={() =>
+                          console.log("Fallback XLSX preview failed")
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {!xlsxLoading && !xlsxError && xlsxRows.length === 0 && (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: "2rem",
+                        color: "#6b7280",
+                      }}
+                    >
+                      <div
+                        style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}
+                      >
+                        📊
+                      </div>
+                      <div>Tidak ada data untuk ditampilkan.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {isCsvFile(previewFile) && (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    padding: "1rem",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {csvLoading && (
+                    <div style={{ textAlign: "center", padding: "2rem" }}>
+                      <div
+                        style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}
+                      >
+                        ⏳
+                      </div>
+                      <div>Memuat CSV...</div>
+                    </div>
+                  )}
+
+                  {!csvLoading && csvRows.length > 0 && (
+                    <div>
+                      <div
+                        style={{
+                          marginBottom: "1rem",
+                          padding: "8px 12px",
+                          backgroundColor: "#dcfce7",
+                          borderRadius: "6px",
+                          border: "1px solid #22c55e",
+                          fontSize: "0.9rem",
+                          color: "#166534",
+                        }}
+                      >
+                        ✅ <strong>CSV berhasil dimuat!</strong> Menampilkan{" "}
+                        {csvRows.length} baris data.
+                      </div>
+                      <div
+                        style={{
+                          height: "calc(100% - 100px)",
+                          overflow: "auto",
+                        }}
+                      >
+                        <table
+                          style={{
+                            width: "100%",
+                            borderCollapse: "collapse",
+                            fontSize: "0.9rem",
+                            backgroundColor: "#ffffff",
+                          }}
+                        >
+                          <tbody>
+                            {csvRows.map((row, idx) => (
+                              <tr
+                                key={idx}
+                                style={{
+                                  backgroundColor:
+                                    idx === 0
+                                      ? "#f3f4f6"
+                                      : idx % 2 === 0
+                                      ? "#ffffff"
+                                      : "#f9fafb",
+                                }}
+                              >
+                                {row.map((cell, j) => (
+                                  <td
+                                    key={j}
+                                    style={{
+                                      border: "1px solid #e5e7eb",
+                                      padding: "8px 12px",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      maxWidth: "200px",
+                                      fontWeight: idx === 0 ? "600" : "normal",
+                                    }}
+                                  >
+                                    {cell}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {!csvLoading && csvError && (
+                    <div>
+                      <div
+                        style={{
+                          marginBottom: "1rem",
+                          padding: "12px",
+                          backgroundColor: "#fef3c7",
+                          borderRadius: "8px",
+                          border: "1px solid #f59e0b",
+                        }}
+                      >
+                        <div style={{ color: "#92400e", fontSize: "0.9rem" }}>
+                          ⚠️ <strong>Fallback Viewer:</strong> {csvError}
+                        </div>
+                      </div>
+
+                      {/* Fallback ke Google Sheets viewer sebagai alternatif */}
+                      <iframe
+                        title={`preview-csv-fallback-${previewFile.id}`}
+                        src={`https://docs.google.com/gview?url=${encodeURIComponent(
+                          previewFile.url
+                        )}&embedded=true`}
+                        style={{
+                          width: "100%",
+                          height: "calc(100% - 80px)",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                          backgroundColor: "#ffffff",
+                        }}
+                        onLoad={() =>
+                          console.log("Fallback CSV preview loaded")
+                        }
+                        onError={() =>
+                          console.log("Fallback CSV preview failed")
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {!csvLoading && !csvError && csvRows.length === 0 && (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: "2rem",
+                        color: "#6b7280",
+                      }}
+                    >
+                      <div
+                        style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}
+                      >
+                        📄
+                      </div>
+                      <div>Tidak ada data untuk ditampilkan.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!canPreviewFile(previewFile) && (
+                <div style={{ padding: "1rem" }}>
+                  Pratinjau tidak didukung untuk tipe ini.
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <a
+                href={previewFile.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+              >
+                Buka di Tab Baru
+              </a>
+              <a href={previewFile.url} download className="btn btn-secondary">
+                Download
+              </a>
+            </div>
           </div>
         </div>
       )}
