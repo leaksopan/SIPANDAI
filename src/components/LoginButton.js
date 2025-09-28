@@ -475,6 +475,17 @@ const LoginButton = () => {
               textShadow: "0 1px 2px rgba(0,0,0,0.3)",
             }}
           >
+            Inspektorat Daerah Kabupaten Buleleng
+          </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "18px",
+              opacity: 0.9,
+              lineHeight: "1.6",
+              textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+            }}
+          >
             Sistem Manajemen Arsip Terpusat-Irban Dua
           </p>
         </div>
