@@ -57,8 +57,8 @@ const ApplicationManagement = () => {
     try {
       setProcessingId(applicationId);
       
-      // Update user role to staff
-      const success = await updateUserRole(userId, 'staff');
+      // Update user role to Auditor (default role for new staff)
+      const success = await updateUserRole(userId, 'Auditor');
       
       if (success) {
         // Update application status

@@ -33,10 +33,12 @@ const FileManagerTab = () => {
   const [allFiles, setAllFiles] = useState([]);
   const [newFolderName, setNewFolderName] = useState("");
   const [showCreateFolder, setShowCreateFolder] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [viewMode, setViewMode] = useState("grid"); // grid or list
   const [selectedItems, setSelectedItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [totalProgress, setTotalProgress] = useState(0);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [previewFile, setPreviewFile] = useState(null); // file untuk preview PDF
@@ -183,7 +185,7 @@ const FileManagerTab = () => {
       return;
     }
 
-    if (!selectedFile) {
+    if (!selectedFiles || selectedFiles.length === 0) {
       alert("Pilih file terlebih dahulu");
       return;
     }
@@ -194,58 +196,138 @@ const FileManagerTab = () => {
 
     setUploading(true);
     setIsProcessing(true);
+    setUploadProgress({});
+    setTotalProgress(0);
+
+    const results = {
+      success: [],
+      failed: [],
+    };
+
     try {
-      const fileName = `${Date.now()}_${selectedFile.name}`;
-      const filePath = currentFolder
-        ? `${currentFolder}/${fileName}`
-        : fileName;
-      const storageRef = ref(storage, `users/${user.uid}/${filePath}`);
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const fileId = `file_${i}_${Date.now()}`;
 
-      const snapshot = await uploadBytes(storageRef, selectedFile);
-      const downloadURL = await getDownloadURL(snapshot.ref);
+        try {
+          // Update progress untuk file ini
+          setUploadProgress((prev) => ({
+            ...prev,
+            [fileId]: { status: "uploading", progress: 0, fileName: file.name },
+          }));
 
-      await addDoc(collection(db, "files"), {
-        name: selectedFile.name,
-        originalName: selectedFile.name,
-        size: selectedFile.size,
-        type: selectedFile.type,
-        url: downloadURL,
-        storagePath: snapshot.ref.fullPath,
-        folder: currentFolder || "",
-        userId: user.uid,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+          const fileName = `${Date.now()}_${file.name}`;
+          const filePath = currentFolder
+            ? `${currentFolder}/${fileName}`
+            : fileName;
+          const storageRef = ref(storage, `users/${user.uid}/${filePath}`);
 
-      setSelectedFile(null);
+          // Upload file
+          const snapshot = await uploadBytes(storageRef, file);
+          const downloadURL = await getDownloadURL(snapshot.ref);
+
+          // Update progress
+          setUploadProgress((prev) => ({
+            ...prev,
+            [fileId]: { status: "saving", progress: 50, fileName: file.name },
+          }));
+
+          // Save to Firestore
+          const docRef = await addDoc(collection(db, "files"), {
+            name: file.name,
+            originalName: file.name,
+            size: file.size,
+            type: file.type,
+            url: downloadURL,
+            storagePath: snapshot.ref.fullPath,
+            folder: currentFolder || "",
+            userId: user.uid,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          // Update progress - success
+          setUploadProgress((prev) => ({
+            ...prev,
+            [fileId]: { status: "success", progress: 100, fileName: file.name },
+          }));
+
+          // Add to results
+          results.success.push({
+            file,
+            id: docRef.id,
+            url: downloadURL,
+            storagePath: snapshot.ref.fullPath,
+          });
+
+          // Update allFiles dengan file baru
+          const newFileData = {
+            id: docRef.id,
+            name: file.name,
+            originalName: file.name,
+            size: file.size,
+            type: file.type,
+            url: downloadURL,
+            storagePath: snapshot.ref.fullPath,
+            folder: currentFolder || "",
+            userId: user.uid,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          setAllFiles((prev) => [newFileData, ...prev]);
+        } catch (fileError) {
+          console.error(`Error uploading file ${file.name}:`, fileError);
+
+          // Update progress - failed
+          setUploadProgress((prev) => ({
+            ...prev,
+            [fileId]: {
+              status: "error",
+              progress: 0,
+              fileName: file.name,
+              error: fileError.message,
+            },
+          }));
+
+          results.failed.push({ file, error: fileError.message });
+        }
+
+        // Update total progress
+        setTotalProgress(((i + 1) / selectedFiles.length) * 100);
+      }
+
+      // Clear selected files and reset input
+      setSelectedFiles([]);
       document.getElementById("fileInput").value = "";
 
-      // Reload files dan update allFiles state
+      // Reload files untuk sync
       await loadFiles();
 
-      // Update allFiles dengan file baru tanpa reload semua
-      const newFileData = {
-        id: "temp_" + Date.now(), // temporary ID
-        name: selectedFile.name,
-        originalName: selectedFile.name,
-        size: selectedFile.size,
-        type: selectedFile.type,
-        url: downloadURL,
-        storagePath: snapshot.ref.fullPath,
-        folder: currentFolder || "",
-        userId: user.uid,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      // Show results
+      const successCount = results.success.length;
+      const failedCount = results.failed.length;
 
-      setAllFiles((prev) => [newFileData, ...prev]);
-      alert("File berhasil diupload!");
+      if (failedCount === 0) {
+        alert(`✅ Berhasil upload ${successCount} file!`);
+      } else if (successCount === 0) {
+        alert(`❌ Gagal upload semua ${failedCount} file!`);
+      } else {
+        alert(
+          `⚠️ Upload selesai: ${successCount} berhasil, ${failedCount} gagal.`
+        );
+      }
     } catch (error) {
-      console.error("Error uploading file:", error);
-      alert("Gagal mengupload file");
+      console.error("Error in batch upload:", error);
+      alert("Gagal melakukan batch upload");
     } finally {
       setUploading(false);
       setIsProcessing(false);
+
+      // Clear progress setelah 3 detik
+      setTimeout(() => {
+        setUploadProgress({});
+        setTotalProgress(0);
+      }, 3000);
     }
   };
 
@@ -276,6 +358,17 @@ const FileManagerTab = () => {
       console.error("Error creating folder:", error);
       alert("Gagal membuat folder");
     }
+  };
+
+  const removeSelectedFile = (indexToRemove) => {
+    setSelectedFiles((prev) =>
+      prev.filter((_, index) => index !== indexToRemove)
+    );
+  };
+
+  const clearAllSelectedFiles = () => {
+    setSelectedFiles([]);
+    document.getElementById("fileInput").value = "";
   };
 
   const handleDeleteFile = async (file) => {
@@ -938,20 +1031,28 @@ const FileManagerTab = () => {
               <input
                 id="fileInput"
                 type="file"
-                onChange={(e) => setSelectedFile(e.target.files[0])}
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files);
+                  setSelectedFiles((prev) => [...prev, ...files]);
+                }}
                 style={{ display: "none" }}
               />
             </label>
           )}
-          {selectedFile && hasPermission("canUploadFiles") && (
+          {selectedFiles.length > 0 && hasPermission("canUploadFiles") && (
             <button
               className="btn btn-success"
               onClick={handleFileUpload}
               disabled={uploading || isProcessing}
             >
               {uploading || isProcessing
-                ? "⏳ Uploading..."
-                : "✅ Konfirmasi Upload"}
+                ? `⏳ Uploading ${Object.keys(uploadProgress).length}/${
+                    selectedFiles.length
+                  }...`
+                : `✅ Upload ${selectedFiles.length} File${
+                    selectedFiles.length > 1 ? "s" : ""
+                  }`}
             </button>
           )}
         </div>
@@ -1092,27 +1193,73 @@ const FileManagerTab = () => {
         </div>
       )}
 
-      {/* Selected File Preview */}
-      {selectedFile && (
-        <div className="selected-file-preview">
-          <div className="preview-content">
-            <span className="file-icon">{getFileIcon(selectedFile.type)}</span>
-            <div className="file-details">
-              <div className="file-name">{selectedFile.name}</div>
-              <div className="file-size">
-                {formatFileSize(selectedFile.size)}
-              </div>
-            </div>
-            <button
-              className="remove-btn"
-              onClick={() => {
-                setSelectedFile(null);
-                document.getElementById("fileInput").value = "";
-              }}
-            >
-              ✕
+      {/* Selected Files Preview */}
+      {selectedFiles.length > 0 && (
+        <div className="selected-files-preview">
+          <div className="preview-header">
+            <h4>Files yang akan diupload ({selectedFiles.length})</h4>
+            <button className="clear-all-btn" onClick={clearAllSelectedFiles}>
+              🗑️ Hapus Semua
             </button>
           </div>
+          <div className="files-list">
+            {selectedFiles.map((file, index) => (
+              <div key={`${file.name}_${index}`} className="file-preview-item">
+                <span className="file-icon">{getFileIcon(file.type)}</span>
+                <div className="file-details">
+                  <div className="file-name" title={file.name}>
+                    {file.name.length > 30
+                      ? `${file.name.substring(0, 30)}...`
+                      : file.name}
+                  </div>
+                  <div className="file-size">{formatFileSize(file.size)}</div>
+                </div>
+                <button
+                  className="remove-file-btn"
+                  onClick={() => removeSelectedFile(index)}
+                  title="Hapus file ini"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Progress indicators saat upload */}
+          {uploading && Object.keys(uploadProgress).length > 0 && (
+            <div className="upload-progress-section">
+              <div className="total-progress">
+                <div className="progress-label">
+                  Total Progress: {Math.round(totalProgress)}%
+                </div>
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${totalProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div className="individual-progress">
+                {Object.entries(uploadProgress).map(([fileId, progress]) => (
+                  <div key={fileId} className="file-progress-item">
+                    <div className="progress-info">
+                      <span className="file-name">{progress.fileName}</span>
+                      <span className={`status-badge ${progress.status}`}>
+                        {progress.status === "uploading" && "⏳ Uploading..."}
+                        {progress.status === "saving" && "💾 Saving..."}
+                        {progress.status === "success" && "✅ Success"}
+                        {progress.status === "error" && "❌ Failed"}
+                      </span>
+                    </div>
+                    {progress.status === "error" && progress.error && (
+                      <div className="error-message">{progress.error}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

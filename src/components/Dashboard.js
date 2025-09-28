@@ -8,7 +8,7 @@ import ApplicationManagement from './ApplicationManagement';
 
 const Dashboard = () => {
   const { user, handleLogout } = useAuth();
-  const { userRole, getRoleLabel, loading: roleLoading, isSuperAdmin, isKepalaBidang, isGuest } = useUserRole();
+  const { userRole, getRoleLabel, loading: roleLoading, isSuperAdmin, isIrban, isAuditor, isGuest, hasPermission } = useUserRole();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (!user) {
@@ -39,14 +39,14 @@ const Dashboard = () => {
             color: '#1f2937',
             margin: '0 0 8px 0'
           }}>
-            SIPANDAI Dashboard
+            SMART-ID Dashboard
           </h1>
           <p style={{
             color: '#6b7280',
             margin: 0,
             fontSize: '16px'
           }}>
-            Sistem Informasi Pandai
+           Sistem Manajemen Arsip Terpusat-IrbanDua
           </p>
         </div>
         
@@ -84,8 +84,8 @@ const Dashboard = () => {
                 {!roleLoading && userRole && (
                   <span style={{
                     backgroundColor: userRole.role === 'super_admin' ? '#dc2626' : 
-                                   userRole.role === 'kepala_bidang' ? '#2563eb' : 
-                                   userRole.role === 'staff' ? '#16a34a' : 
+                                   userRole.role === 'Irban' ? '#2563eb' : 
+                                   userRole.role === 'Auditor' ? '#16a34a' : 
                                    userRole.role === 'guest' ? '#9333ea' : '#6b7280',
                     color: 'white',
                     padding: '2px 8px',
@@ -164,25 +164,27 @@ const Dashboard = () => {
           >
             🏠 Dashboard
           </button>
-          <button
-            onClick={() => setActiveTab('filemanager')}
-            style={{
-              padding: '16px 24px',
-              backgroundColor: activeTab === 'filemanager' ? '#3b82f6' : 'transparent',
-              color: activeTab === 'filemanager' ? 'white' : '#6b7280',
-              border: 'none',
-              borderRadius: isSuperAdmin ? '0' : '0 12px 0 0',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '500',
-              transition: 'all 0.2s',
-              flex: 1
-            }}
-          >
-            📚 Arsip Digital
-          </button>
+          {hasPermission('canViewFiles') && (
+            <button
+              onClick={() => setActiveTab('filemanager')}
+              style={{
+                padding: '16px 24px',
+                backgroundColor: activeTab === 'filemanager' ? '#3b82f6' : 'transparent',
+                color: activeTab === 'filemanager' ? 'white' : '#6b7280',
+                border: 'none',
+                borderRadius: hasPermission('canManageRoles') ? '0' : '0 12px 0 0',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '500',
+                transition: 'all 0.2s',
+                flex: 1
+              }}
+            >
+              📚 Arsip Digital
+            </button>
+          )}
           
-          {(isSuperAdmin || isKepalaBidang) && (
+          {(isSuperAdmin || isIrban) && (
             <button
               onClick={() => setActiveTab('applications')}
               style={{
@@ -190,7 +192,7 @@ const Dashboard = () => {
                 backgroundColor: activeTab === 'applications' ? '#3b82f6' : 'transparent',
                 color: activeTab === 'applications' ? 'white' : '#6b7280',
                 border: 'none',
-                borderRadius: isSuperAdmin ? '0' : '0 12px 0 0',
+                borderRadius: hasPermission('canManageRoles') ? '0' : '0 12px 0 0',
                 cursor: 'pointer',
                 fontSize: '16px',
                 fontWeight: '500',
@@ -202,7 +204,7 @@ const Dashboard = () => {
             </button>
           )}
           
-          {isSuperAdmin && (
+          {hasPermission('canManageRoles') && (
             <button
               onClick={() => setActiveTab('usermanagement')}
               style={{
@@ -274,7 +276,7 @@ const Dashboard = () => {
                   margin: 0,
                   maxWidth: '400px'
                 }}>
-                  Selamat datang di SIPANDAI. Semoga hari Anda menyenangkan!
+                  Selamat datang di SMART-ID. Semoga hari Anda menyenangkan!
                 </p>
               </div>
 
@@ -363,17 +365,17 @@ const Dashboard = () => {
       )}
 
       {/* File Manager Tab */}
-      {activeTab === 'filemanager' && (
+      {activeTab === 'filemanager' && hasPermission('canViewFiles') && (
         <FileManagerTab />
       )}
 
       {/* Application Management Tab */}
-      {activeTab === 'applications' && (
+      {activeTab === 'applications' && (isSuperAdmin || isIrban) && (
         <ApplicationManagement />
       )}
 
       {/* User Management Tab */}
-      {activeTab === 'usermanagement' && (
+      {activeTab === 'usermanagement' && hasPermission('canManageRoles') && (
         <UserManagement />
       )}
     </div>

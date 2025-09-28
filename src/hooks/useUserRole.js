@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import useAuth from './useAuth';
+import { useState, useEffect, useCallback } from "react";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { db } from "../firebase/config";
+import useAuth from "./useAuth";
 
 const useUserRole = () => {
   const { user } = useAuth();
@@ -11,17 +11,17 @@ const useUserRole = () => {
 
   // Role hierarchy
   const ROLES = {
-    SUPER_ADMIN: 'super_admin',
-    KEPALA_BIDANG: 'kepala_bidang', 
-    STAFF: 'staff',
-    GUEST: 'guest'
+    SUPER_ADMIN: "super_admin",
+    IRBAN: "Irban",
+    AUDITOR: "Auditor",
+    GUEST: "guest",
   };
 
   const ROLE_LABELS = {
-    super_admin: 'Super Admin',
-    kepala_bidang: 'Kepala Bidang',
-    staff: 'Staff',
-    guest: 'Guest'
+    super_admin: "Super Admin",
+    Irban: "Irban",
+    Auditor: "Auditor",
+    guest: "Guest",
   };
 
   const ROLE_PERMISSIONS = {
@@ -35,21 +35,11 @@ const useUserRole = () => {
       canUploadFiles: true,
       canDownloadFiles: true,
       canCreateFolders: true,
-      canDeleteFiles: true
+      canDeleteFiles: true,
+      canDeleteFolders: true,
+      canViewFiles: true,
     },
-    kepala_bidang: {
-      canCreateUsers: false,
-      canEditUsers: true,
-      canDeleteUsers: false,
-      canManageRoles: false,
-      canAccessAllFiles: true,
-      canManageSystem: false,
-      canUploadFiles: true,
-      canDownloadFiles: true,
-      canCreateFolders: true,
-      canDeleteFiles: true
-    },
-    staff: {
+    Irban: {
       canCreateUsers: false,
       canEditUsers: false,
       canDeleteUsers: false,
@@ -59,7 +49,23 @@ const useUserRole = () => {
       canUploadFiles: true,
       canDownloadFiles: true,
       canCreateFolders: true,
-      canDeleteFiles: false
+      canDeleteFiles: true,
+      canDeleteFolders: true,
+      canViewFiles: true,
+    },
+    Auditor: {
+      canCreateUsers: false,
+      canEditUsers: false,
+      canDeleteUsers: false,
+      canManageRoles: false,
+      canAccessAllFiles: true,
+      canManageSystem: false,
+      canUploadFiles: true,
+      canDownloadFiles: false,
+      canCreateFolders: false,
+      canDeleteFiles: false,
+      canDeleteFolders: false,
+      canViewFiles: true,
     },
     guest: {
       canCreateUsers: false,
@@ -71,8 +77,10 @@ const useUserRole = () => {
       canUploadFiles: false,
       canDownloadFiles: false,
       canCreateFolders: false,
-      canDeleteFiles: false
-    }
+      canDeleteFiles: false,
+      canDeleteFolders: false,
+      canViewFiles: false,
+    },
   };
 
   // Get user role from Firestore
@@ -86,9 +94,9 @@ const useUserRole = () => {
 
       try {
         setLoading(true);
-        const userDocRef = doc(db, 'users', user.uid);
+        const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
-        
+
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setUserRole(userData);
@@ -102,14 +110,14 @@ const useUserRole = () => {
             role: ROLES.GUEST,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            isActive: true
+            isActive: true,
           };
-          
+
           await setDoc(userDocRef, newUserData);
           setUserRole(newUserData);
         }
       } catch (err) {
-        console.error('Error fetching user role:', err);
+        console.error("Error fetching user role:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -120,32 +128,38 @@ const useUserRole = () => {
   }, [user]);
 
   // Update user role
-  const updateUserRole = useCallback(async (userId, newRole) => {
-    try {
-      const userDocRef = doc(db, 'users', userId);
-      await updateDoc(userDocRef, {
-        role: newRole,
-        updatedAt: new Date().toISOString()
-      });
-      
-      // Update local state if it's current user
-      if (userId === user?.uid) {
-        setUserRole(prev => ({ ...prev, role: newRole }));
+  const updateUserRole = useCallback(
+    async (userId, newRole) => {
+      try {
+        const userDocRef = doc(db, "users", userId);
+        await updateDoc(userDocRef, {
+          role: newRole,
+          updatedAt: new Date().toISOString(),
+        });
+
+        // Update local state if it's current user
+        if (userId === user?.uid) {
+          setUserRole((prev) => ({ ...prev, role: newRole }));
+        }
+
+        return true;
+      } catch (err) {
+        console.error("Error updating user role:", err);
+        setError(err.message);
+        return false;
       }
-      
-      return true;
-    } catch (err) {
-      console.error('Error updating user role:', err);
-      setError(err.message);
-      return false;
-    }
-  }, [user?.uid]);
+    },
+    [user?.uid]
+  );
 
   // Check permissions
-  const hasPermission = useCallback((permission) => {
-    if (!userRole?.role) return false;
-    return ROLE_PERMISSIONS[userRole.role]?.[permission] || false;
-  }, [userRole?.role]);
+  const hasPermission = useCallback(
+    (permission) => {
+      if (!userRole?.role) return false;
+      return ROLE_PERMISSIONS[userRole.role]?.[permission] || false;
+    },
+    [userRole?.role]
+  );
 
   // Get role label
   const getRoleLabel = useCallback((role) => {
@@ -162,9 +176,9 @@ const useUserRole = () => {
     hasPermission,
     getRoleLabel,
     isSuperAdmin: userRole?.role === ROLES.SUPER_ADMIN,
-    isKepalaBidang: userRole?.role === ROLES.KEPALA_BIDANG,
-    isStaff: userRole?.role === ROLES.STAFF,
-    isGuest: userRole?.role === ROLES.GUEST
+    isIrban: userRole?.role === ROLES.IRBAN,
+    isAuditor: userRole?.role === ROLES.AUDITOR,
+    isGuest: userRole?.role === ROLES.GUEST,
   };
 };
 

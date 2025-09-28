@@ -85,8 +85,8 @@ const UserManagement = () => {
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case 'super_admin': return '#dc2626';
-      case 'kepala_bidang': return '#2563eb';
-      case 'staff': return '#16a34a';
+      case 'Irban': return '#2563eb';
+      case 'Auditor': return '#16a34a';
       case 'guest': return '#9333ea';
       default: return '#6b7280';
     }
