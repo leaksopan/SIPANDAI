@@ -1,70 +1,112 @@
-# Getting Started with Create React App
+## SMART-ID (Sistem Manajemen Arsip Terpusat – IrbanDua)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Ringkas untuk LinkedIn: Aplikasi React + Firebase untuk manajemen arsip terpusat dengan autentikasi, peran/izin granular, unggah/kelola file, serta alur pendaftaran staff dan persetujuan. Dibangun ringan, modern, dan production-ready.
 
-## Available Scripts
+### Highlight
+- **Auth**: Firebase Auth (Google, email/password) + sinkronisasi user ke `Firestore`.
+- **RBAC**: Role `super_admin`, `Irban`, `Auditor`, `guest` dengan izin granular (view/upload/download/manage).
+- **File Manager**: Upload, foldering, search/filter tanggal, preview PDF/CSV/XLSX, bulk progress.
+- **User & Staff Ops**: Form aplikasi staff, persetujuan/penolakan, promosi role, aktivasi/deaktivasi user.
+- **UI/UX**: Dashboard tab-based, komponen terpisah, responsive styling.
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## Arsitektur Singkat
+- **Frontend**: React (CRA), hooks kustom (`useAuth`, `useUserRole`).
+- **Backend-as-a-Service**: Firebase (Auth, Firestore, Storage).
+- **Data**:
+  - Collection `users`: profil + `role`, `isActive`.
+  - Collection `staff_applications`: pengajuan menjadi staff dan statusnya.
+  - Metadata file/folder tersimpan di Firestore; konten file di Storage.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Skema alur utama:
+1) Login → sinkronisasi user ke `users` (default role `guest`).
+2) Role/permission di-resolve via `useUserRole` → kontrol tab/aksi UI.
+3) File manager beroperasi ke Firestore/Storage sesuai izin.
+4) Staff mendaftar → admin menyetujui → role user dipromosikan otomatis.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## Indeks Kode (Codebase Index)
+- `src/index.js`: Entrypoint React.
+- `src/App.js`: Gate auth → `Dashboard` atau `LoginButton`.
+- `src/firebase/config.js`: Inisialisasi Firebase (Auth, Firestore, Storage).
+- `src/hooks/useAuth.js`: State auth, Google/email login, register, logout, sinkronisasi user → Firestore.
+- `src/hooks/useUserRole.js`: Load role dari Firestore, pemetaan izin, helper role-label, update role.
+- `src/components/Dashboard.js`: Shell dashboard, tab: `filemanager`, `applications`, `usermanagement`, guard izin.
+- `src/components/FileManagerTab.js`: UI file manager lengkap (upload, folder, filter, preview PDF/CSV/XLSX, bulk).
+- `src/components/FileManager.js`: Varian file manager (lebih sederhana).
+- `src/components/UserManagement.js`: Listing user, edit role, toggle aktif.
+- `src/components/ApplicationManagement.js`: Tabel aplikasi staff, approve/reject/delete, auto-promote role.
+- `src/components/StaffApplicationForm.js`: Form pengajuan menjadi staff (Irban/Auditor).
+- `public/*`: Asset statis, manifest.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## Fitur Utama (Detail)
+- **Role & Permission**
+  - `super_admin`: full access, kelola user/role, semua file.
+  - `Irban`: akses penuh arsip, kelola file/folder.
+  - `Auditor`: akses baca file, upload dibatasi, tanpa download (sesuai mapping).
+  - `guest`: akses sangat terbatas.
+- **File Ops**: buat folder, upload multi-file dgn progress total, hapus, filter tanggal, pencarian, preview langsung.
+- **Staff Apps**: user ajukan diri → admin setujui/tolak → status dan tanggal proses terekam.
+- **User Ops**: ganti role, aktif/nonaktif user, badge/label per role.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Teknologi
+- React 19, CRA 5
+- Firebase 12 (Auth, Firestore, Storage)
+- XLSX untuk parsing/previews
+- Tailwind (konfigurasi tersertakan), CSS modular sederhana
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+---
 
-### `npm run eject`
+## Menjalankan Secara Lokal
+1. Node LTS disarankan. Install dep:
+   ```bash
+   npm install
+   ```
+2. Buat file `.env` di root (prefiks `REACT_APP_`):
+   ```bash
+   REACT_APP_FIREBASE_API_KEY=xxx
+   REACT_APP_FIREBASE_AUTH_DOMAIN=xxx
+   REACT_APP_FIREBASE_PROJECT_ID=xxx
+   REACT_APP_FIREBASE_STORAGE_BUCKET=xxx
+   REACT_APP_FIREBASE_MESSAGING_SENDER_ID=xxx
+   REACT_APP_FIREBASE_APP_ID=xxx
+   REACT_APP_FIREBASE_MEASUREMENT_ID=xxx
+   ```
+3. Jalankan:
+   ```bash
+   npm start
+   ```
+4. Build prod:
+   ```bash
+   npm run build
+   ```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+---
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Praktik Keamanan yang Disarankan
+- Batasi rules `firestore.rules` dan `storage.rules` sesuai `role` dan `isActive`.
+- Validasi ukuran/jenis file saat upload.
+- Audit log untuk perubahan role dan operasi file sensitif (opsional).
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+---
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Catatan Implementasi
+- Default user baru → `guest` hingga dipromosikan.
+- Izin UI ditentukan via `useUserRole.hasPermission()`; tab/aksi tersembunyi jika tak berizin.
+- Aksi admin (approve aplikasi) memanggil `updateUserRole` untuk promosi (`Auditor` by default).
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Status Proyek
+Production-ready untuk lingkungan kecil/menengah berbasis Firebase. Dapat di-scale dengan indexing Firestore dan CDN Storage.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
 
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Kredit
+CRA, Firebase, XLSX, Tailwind. 

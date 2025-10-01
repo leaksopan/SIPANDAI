@@ -447,7 +447,7 @@ const LoginButton = () => {
         >
           <img
             src="/68_geografis-dan-iklim.png"
-            alt="Logo Dinas Kesehatan"
+            alt="Logo Kab Buleleng"
             style={{
               width: "400px",
               height: "400px",
