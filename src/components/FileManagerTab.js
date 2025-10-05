@@ -50,6 +50,7 @@ const FileManagerTab = () => {
   const [xlsxError, setXlsxError] = useState(null);
   const [xlsxSheets, setXlsxSheets] = useState([]);
   const [activeSheet, setActiveSheet] = useState(0);
+  const [uploaderInfoByUserId, setUploaderInfoByUserId] = useState({});
 
   useEffect(() => {
     if (user && !roleLoading) {
@@ -91,6 +92,7 @@ const FileManagerTab = () => {
       }));
 
       setAllFiles(filesData);
+      await fetchUploaderInfos(filesData);
     } catch (error) {
       console.error("Error loading all files:", error);
     }
@@ -138,8 +140,46 @@ const FileManagerTab = () => {
       }));
 
       setFiles(filesData);
+      await fetchUploaderInfos(filesData);
     } catch (error) {
       console.error("Error loading files:", error);
+    }
+  };
+
+  const fetchUploaderInfos = async (filesList) => {
+    try {
+      const knownIds = new Set(Object.keys(uploaderInfoByUserId));
+      const uniqueIds = Array.from(
+        new Set((filesList || []).map((f) => f.userId).filter(Boolean))
+      ).filter((id) => !knownIds.has(id));
+
+      if (uniqueIds.length === 0) return;
+
+      const updates = {};
+      for (const uid of uniqueIds) {
+        try {
+          const snap = await getDocs(
+            query(collection(db, "users"), where("uid", "==", uid))
+          );
+          const docData = snap.docs[0]?.data();
+          if (docData) {
+            updates[uid] = {
+              displayName: docData.displayName || docData.name || "Pengguna",
+              email: docData.email || "",
+            };
+          } else {
+            updates[uid] = { displayName: uid, email: "" };
+          }
+        } catch (e) {
+          updates[uid] = { displayName: uid, email: "" };
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setUploaderInfoByUserId((prev) => ({ ...prev, ...updates }));
+      }
+    } catch (e) {
+      // abaikan: info uploader opsional
     }
   };
 
@@ -922,6 +962,26 @@ const FileManagerTab = () => {
       {/* Header */}
       <div className="file-manager-header">
         <div className="header-left">
+          {currentFolder && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                const parts = currentFolder.split("/");
+                parts.pop();
+                setCurrentFolder(parts.join("/"));
+              }}
+              title="Kembali ke folder sebelumnya"
+              aria-label="Kembali ke folder sebelumnya"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                marginRight: "8px",
+              }}
+            >
+              ← Kembali
+            </button>
+          )}
           <h2>📚 Arsip Digital Pemerintah</h2>
           <div className="breadcrumb">
             {getBreadcrumb().map((crumb, index) => (
@@ -1103,6 +1163,11 @@ const FileManagerTab = () => {
                   )}
                   <div className="item-meta">
                     {formatFileSize(file.size)} • {formatDate(file.createdAt)}
+                  </div>
+                  <div className="item-meta" style={{ color: "#9CA3AF" }}>
+                    Diunggah oleh:{" "}
+                    {uploaderInfoByUserId[file.userId]?.displayName ||
+                      file.userId}
                   </div>
                 </div>
                 <div className="item-actions">

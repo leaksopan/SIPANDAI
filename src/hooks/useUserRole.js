@@ -61,7 +61,7 @@ const useUserRole = () => {
       canAccessAllFiles: true,
       canManageSystem: false,
       canUploadFiles: true,
-      canDownloadFiles: false,
+      canDownloadFiles: true,
       canCreateFolders: false,
       canDeleteFiles: false,
       canDeleteFolders: false,

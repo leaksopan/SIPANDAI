@@ -315,10 +315,10 @@ const LoginButton = () => {
               onMouseOver={(e) => (e.target.style.backgroundColor = "#4338ca")}
               onMouseOut={(e) => (e.target.style.backgroundColor = "#4f46e5")}
             >
-              Masuk
+              {isLoginMode ? "Masuk" : "Daftar"}
             </button>
 
-            <div style={{ textAlign: "center", margin: "16px 0" }}>
+            {/* <div style={{ textAlign: "center", margin: "16px 0" }}>
               <a
                 href="#"
                 style={{
@@ -329,7 +329,7 @@ const LoginButton = () => {
               >
                 Lupa Password?
               </a>
-            </div>
+            </div> */}
 
             <button
               type="button"
