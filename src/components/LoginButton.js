@@ -250,7 +250,7 @@ const LoginButton = () => {
                   color: "#374151",
                 }}
               >
-                USERNAME
+                EMAIL
               </label>
               <input
                 type="email"

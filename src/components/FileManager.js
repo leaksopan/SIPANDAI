@@ -15,6 +15,7 @@ import {
   orderBy,
   deleteDoc,
   doc,
+  limit,
 } from "firebase/firestore";
 import { storage, db } from "../firebase/config";
 import useAuth from "../hooks/useAuth";
@@ -308,15 +309,27 @@ const FileManager = () => {
   };
 
   const handleDeleteFolder = async (folder) => {
-    if (
-      !window.confirm(
-        `Hapus folder "${folder.name}"? Semua isi folder akan ikut terhapus.`
-      )
-    ) {
-      return;
-    }
-
     try {
+      const folderPath = currentFolder
+        ? `${currentFolder}/${folder.name}`
+        : folder.name;
+
+      // Cek apakah ada file di dalam folder ini
+      const filesInFolderQuery = query(
+        collection(db, "files"),
+        where("folder", "==", folderPath),
+        limit(1)
+      );
+      const filesSnapshot = await getDocs(filesInFolderQuery);
+      if (!filesSnapshot.empty) {
+        alert("Masih ada file di dalam, hapus dulu semua");
+        return;
+      }
+
+      if (!window.confirm(`Hapus folder "${folder.name}"?`)) {
+        return;
+      }
+
       // Hapus folder dari Firestore
       await deleteDoc(doc(db, "folders", folder.id));
 

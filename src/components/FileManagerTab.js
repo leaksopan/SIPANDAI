@@ -14,6 +14,7 @@ import {
   orderBy,
   deleteDoc,
   doc,
+  limit,
 } from "firebase/firestore";
 import { storage, db } from "../firebase/config";
 import useAuth from "../hooks/useAuth";
@@ -216,6 +217,40 @@ const FileManagerTab = () => {
       setFolders(foldersData);
     } catch (error) {
       console.error("Error loading folders:", error);
+    }
+  };
+
+  const handleDeleteFolder = async (folder) => {
+    if (!hasPermission("canDeleteFolders")) {
+      alert("Anda tidak memiliki permission untuk menghapus folder");
+      return;
+    }
+
+    const folderPath = currentFolder
+      ? `${currentFolder}/${folder.name}`
+      : folder.name;
+
+    try {
+      // Cek apakah ada file di dalam folder ini (hanya level saat ini)
+      const filesInFolderQuery = query(
+        collection(db, "files"),
+        where("folder", "==", folderPath),
+        limit(1)
+      );
+      const filesSnapshot = await getDocs(filesInFolderQuery);
+      if (!filesSnapshot.empty) {
+        alert("Masih ada file di dalam, hapus dulu semua");
+        return;
+      }
+
+      if (!window.confirm(`Hapus folder \"${folder.name}\"?`)) return;
+
+      await deleteDoc(doc(db, "folders", folder.id));
+      await loadFolders();
+      alert("Folder berhasil dihapus!");
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+      alert("Gagal menghapus folder");
     }
   };
 
@@ -1143,12 +1178,27 @@ const FileManagerTab = () => {
                     : folder.name;
                   setCurrentFolder(newPath);
                 }}
+                style={{ position: "relative" }}
               >
                 <div className="item-icon">📁</div>
                 <div className="item-info">
                   <div className="item-name">{folder.name}</div>
                   <div className="item-meta">Folder</div>
                 </div>
+                {hasPermission("canDeleteFolders") && (
+                  <div className="item-actions" style={{ marginLeft: "auto" }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFolder(folder);
+                      }}
+                      className="action-btn delete"
+                      title="Hapus folder"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
 
