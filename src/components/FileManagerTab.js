@@ -26,6 +26,7 @@ import DocxViewer from "./DocxViewer";
 import ExcelViewer from "./ExcelViewer";
 import MoveModal from "./MoveModal";
 import AdvancedSearch from "./AdvancedSearch";
+import { logActivity, ACTION_TYPES, TARGET_TYPES } from "../utils/activityLogger";
 import "./FileManagerTab.css";
 
 const FileManagerTab = () => {
@@ -252,6 +253,17 @@ const FileManagerTab = () => {
       if (!window.confirm(`Hapus folder \"${folder.name}\"?`)) return;
 
       await deleteDoc(doc(db, "folders", folder.id));
+
+      // Log activity
+      await logActivity({
+        userEmail: user.email,
+        userName: user.displayName,
+        action: ACTION_TYPES.FOLDER_DELETE,
+        targetType: TARGET_TYPES.FOLDER,
+        targetName: folder.name,
+        details: `Deleted from ${currentFolder || "root"}`,
+      });
+
       await loadFolders();
       alert("Folder berhasil dihapus!");
     } catch (error) {
@@ -339,6 +351,16 @@ const FileManagerTab = () => {
             id: docRef.id,
             url: downloadURL,
             storagePath: snapshot.ref.fullPath,
+          });
+
+          // Log activity
+          await logActivity({
+            userEmail: user.email,
+            userName: user.displayName,
+            action: ACTION_TYPES.FILE_UPLOAD,
+            targetType: TARGET_TYPES.FILE,
+            targetName: file.name,
+            details: `Uploaded to ${currentFolder || "root"}`,
           });
 
           // Update allFiles dengan file baru
@@ -432,6 +454,16 @@ const FileManagerTab = () => {
         updatedAt: new Date(),
       });
 
+      // Log activity
+      await logActivity({
+        userEmail: user.email,
+        userName: user.displayName,
+        action: ACTION_TYPES.FOLDER_CREATE,
+        targetType: TARGET_TYPES.FOLDER,
+        targetName: newFolderName,
+        details: `Created in ${currentFolder || "root"}`,
+      });
+
       setNewFolderName("");
       setShowCreateFolder(false);
       await loadFolders();
@@ -459,6 +491,16 @@ const FileManagerTab = () => {
       const storageRef = ref(storage, file.storagePath);
       await deleteObject(storageRef);
       await deleteDoc(doc(db, "files", file.id));
+
+      // Log activity
+      await logActivity({
+        userEmail: user.email,
+        userName: user.displayName,
+        action: ACTION_TYPES.FILE_DELETE,
+        targetType: TARGET_TYPES.FILE,
+        targetName: file.name,
+        details: `Deleted from ${file.folder || "root"}`,
+      });
 
       // Update local state tanpa reload semua
       await loadFiles();

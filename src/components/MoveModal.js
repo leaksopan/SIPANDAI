@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase/config";
+import { logActivity, ACTION_TYPES, TARGET_TYPES } from "../utils/activityLogger";
 import "./MoveModal.css";
 
 /**
@@ -103,6 +104,19 @@ const MoveModal = ({ items, currentFolder, user, onClose, onSuccess }) => {
                             folder: selectedFolder,
                             updatedAt: new Date(),
                         });
+
+                        // Log activity
+                        if (user) {
+                            await logActivity({
+                                userEmail: user.email,
+                                userName: user.displayName,
+                                action: ACTION_TYPES.FILE_MOVE,
+                                targetType: TARGET_TYPES.FILE,
+                                targetName: item.data.name,
+                                details: `Moved from ${currentFolder || "root"} to ${selectedFolder || "root"}`,
+                            });
+                        }
+
                         results.success++;
                     } else if (item.type === "folder") {
                         // Move folder: update parentFolder in Firestore
@@ -129,6 +143,18 @@ const MoveModal = ({ items, currentFolder, user, onClose, onSuccess }) => {
                             await updateDoc(doc(db, "files", fileDoc.id), {
                                 folder: newFolderPath,
                                 updatedAt: new Date(),
+                            });
+                        }
+
+                        // Log activity
+                        if (user) {
+                            await logActivity({
+                                userEmail: user.email,
+                                userName: user.displayName,
+                                action: ACTION_TYPES.FOLDER_MOVE,
+                                targetType: TARGET_TYPES.FOLDER,
+                                targetName: item.data.name,
+                                details: `Moved from ${currentFolder || "root"} to ${selectedFolder || "root"}`,
                             });
                         }
 

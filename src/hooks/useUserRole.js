@@ -39,6 +39,7 @@ const useUserRole = () => {
       canDeleteFiles: true,
       canDeleteFolders: true,
       canViewFiles: true,
+      canViewLogs: true,
     },
     Irban: {
       canCreateUsers: false,
@@ -53,6 +54,7 @@ const useUserRole = () => {
       canDeleteFiles: true,
       canDeleteFolders: true,
       canViewFiles: true,
+      canViewLogs: false,
     },
     Auditor: {
       canCreateUsers: false,
@@ -67,6 +69,7 @@ const useUserRole = () => {
       canDeleteFiles: false,
       canDeleteFolders: false,
       canViewFiles: true,
+      canViewLogs: false,
     },
     guest: {
       canCreateUsers: false,
@@ -81,6 +84,7 @@ const useUserRole = () => {
       canDeleteFiles: false,
       canDeleteFolders: false,
       canViewFiles: false,
+      canViewLogs: false,
     },
   };
 

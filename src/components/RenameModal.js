@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { doc, updateDoc, query, collection, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase/config";
+import useAuth from "../hooks/useAuth";
+import { logActivity, ACTION_TYPES, TARGET_TYPES } from "../utils/activityLogger";
 
 const RenameModal = ({ item, type, onClose, onSuccess }) => {
+    const { user } = useAuth();
     const [newName, setNewName] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -123,6 +126,18 @@ const RenameModal = ({ item, type, onClose, onSuccess }) => {
                 });
             }
         }
+
+        // Log activity
+        if (user) {
+            await logActivity({
+                userEmail: user.email,
+                userName: user.displayName,
+                action: ACTION_TYPES.FOLDER_RENAME,
+                targetType: TARGET_TYPES.FOLDER,
+                targetName: item.name,
+                details: `Renamed to: ${newName}`,
+            });
+        }
     };
 
     const renameFile = async () => {
@@ -170,6 +185,18 @@ const RenameModal = ({ item, type, onClose, onSuccess }) => {
             originalName: finalNewName,
             updatedAt: new Date(),
         });
+
+        // Log activity
+        if (user) {
+            await logActivity({
+                userEmail: user.email,
+                userName: user.displayName,
+                action: ACTION_TYPES.FILE_RENAME,
+                targetType: TARGET_TYPES.FILE,
+                targetName: item.originalName || item.name,
+                details: `Renamed to: ${finalNewName}`,
+            });
+        }
     };
 
     if (!item) return null;

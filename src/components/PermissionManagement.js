@@ -27,6 +27,7 @@ const PermissionManagement = () => {
         { key: "canDeleteFolders", label: "Hapus Folder", category: "File Management" },
         { key: "canViewFiles", label: "Lihat File", category: "File Management" },
         { key: "canManageSystem", label: "Kelola Sistem", category: "System" },
+        { key: "canViewLogs", label: "Lihat Activity Logs", category: "System" },
     ];
 
     useEffect(() => {

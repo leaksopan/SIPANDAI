@@ -6,6 +6,7 @@ import UserManagement from "./UserManagement";
 import StaffApplicationForm from "./StaffApplicationForm";
 import ApplicationManagement from "./ApplicationManagement";
 import PermissionManagement from "./PermissionManagement";
+import ActivityLogs from "./ActivityLogs";
 
 const Dashboard = () => {
   const { user, handleLogout } = useAuth();
@@ -303,7 +304,7 @@ const Dashboard = () => {
                   activeTab === "permissions" ? "#3b82f6" : "transparent",
                 color: activeTab === "permissions" ? "white" : "#6b7280",
                 border: "none",
-                borderRadius: "0 12px 0 0",
+                borderRadius: "0",
                 cursor: "pointer",
                 fontSize: "16px",
                 fontWeight: "500",
@@ -312,6 +313,27 @@ const Dashboard = () => {
               }}
             >
               🔐 Permissions
+            </button>
+          )}
+
+          {hasPermission("canViewLogs") && (
+            <button
+              onClick={() => setActiveTab("logs")}
+              style={{
+                padding: "16px 24px",
+                backgroundColor:
+                  activeTab === "logs" ? "#3b82f6" : "transparent",
+                color: activeTab === "logs" ? "white" : "#6b7280",
+                border: "none",
+                borderRadius: "0 12px 0 0",
+                cursor: "pointer",
+                fontSize: "16px",
+                fontWeight: "500",
+                transition: "all 0.2s",
+                flex: 1,
+              }}
+            >
+              📊 Activity Logs
             </button>
           )}
         </div>
@@ -502,6 +524,11 @@ const Dashboard = () => {
       {/* Permission Management Tab */}
       {activeTab === "permissions" && isSuperAdmin && (
         <PermissionManagement />
+      )}
+
+      {/* Activity Logs Tab */}
+      {activeTab === "logs" && hasPermission("canViewLogs") && (
+        <ActivityLogs />
       )}
     </div>
   );
