@@ -24,6 +24,7 @@ import FolderUpload from "./FolderUpload";
 import RenameModal from "./RenameModal";
 import DocxViewer from "./DocxViewer";
 import ExcelViewer from "./ExcelViewer";
+import MoveModal from "./MoveModal";
 import "./FileManagerTab.css";
 
 const FileManagerTab = () => {
@@ -53,6 +54,8 @@ const FileManagerTab = () => {
   const [uploaderInfoByUserId, setUploaderInfoByUserId] = useState({});
   const [renameItem, setRenameItem] = useState(null);
   const [renameType, setRenameType] = useState(null);
+  const [clipboard, setClipboard] = useState([]); // Cut items
+  const [showMoveModal, setShowMoveModal] = useState(false);
 
   useEffect(() => {
     if (user && !roleLoading) {
@@ -573,6 +576,132 @@ const FileManagerTab = () => {
     alert(`✅ Download ${files.length} file dimulai!`);
   };
 
+  // Copy (Ctrl+C)
+  const handleCopy = () => {
+    if (selectedItems.length === 0) {
+      alert("Pilih item untuk di-copy");
+      return;
+    }
+    setClipboard(selectedItems);
+    alert(`📋 ${selectedItems.length} item di-copy. Tekan Ctrl+V untuk paste.`);
+  };
+
+  // Paste (Ctrl+V) - Langsung paste di current folder
+  const handlePaste = async () => {
+    if (clipboard.length === 0) {
+      alert("Tidak ada item di clipboard");
+      return;
+    }
+
+    if (!window.confirm(`Paste ${clipboard.length} item ke folder ini?`)) {
+      return;
+    }
+
+    setIsProcessing(true);
+    const results = { success: 0, failed: 0 };
+
+    try {
+      for (const item of clipboard) {
+        try {
+          if (item.type === "file") {
+            // Copy file: duplicate di Firebase Storage + Firestore
+            const originalRef = ref(storage, item.data.storagePath);
+            const fileBlob = await fetch(item.data.url).then((r) => r.blob());
+
+            const newFileName = `${Date.now()}_${item.data.name}`;
+            const newPath = currentFolder ? `${currentFolder}/${newFileName}` : newFileName;
+            const newStorageRef = ref(storage, `users/${user.uid}/${newPath}`);
+
+            const snapshot = await uploadBytes(newStorageRef, fileBlob);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            await addDoc(collection(db, "files"), {
+              name: item.data.name,
+              originalName: item.data.name,
+              size: item.data.size,
+              type: item.data.type,
+              url: downloadURL,
+              storagePath: snapshot.ref.fullPath,
+              folder: currentFolder || "",
+              userId: user.uid,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+
+            results.success++;
+          } else if (item.type === "folder") {
+            // Copy folder: create new folder with same name
+            const newFolderName = `${item.data.name}_copy`;
+            await addDoc(collection(db, "folders"), {
+              name: newFolderName,
+              parentFolder: currentFolder || "",
+              userId: user.uid,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+            results.success++;
+          }
+        } catch (error) {
+          console.error("Error pasting item:", error);
+          results.failed++;
+        }
+      }
+
+      await loadFilesAndFolders();
+      setClipboard([]);
+      clearSelection();
+
+      if (results.failed === 0) {
+        alert(`✅ Berhasil paste ${results.success} item!`);
+      } else {
+        alert(`⚠️ Selesai: ${results.success} berhasil, ${results.failed} gagal`);
+      }
+    } catch (error) {
+      console.error("Error in paste operation:", error);
+      alert("Gagal melakukan paste");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Move selected items
+  const handleMove = () => {
+    if (selectedItems.length === 0) {
+      alert("Pilih item untuk dipindahkan");
+      return;
+    }
+    setShowMoveModal(true);
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+C - Copy
+      if (e.ctrlKey && e.key === "c") {
+        e.preventDefault();
+        handleCopy();
+      }
+      // Ctrl+V - Paste
+      if (e.ctrlKey && e.key === "v") {
+        e.preventDefault();
+        handlePaste();
+      }
+      // Ctrl+A - Select All
+      if (e.ctrlKey && e.key === "a") {
+        e.preventDefault();
+        selectAll();
+      }
+      // Escape - Clear selection
+      if (e.key === "Escape") {
+        clearSelection();
+        setClipboard([]);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedItems, clipboard, currentFolder]);
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -1015,6 +1144,21 @@ const FileManagerTab = () => {
                 </button>
               )}
               <button
+                className="btn btn-secondary"
+                onClick={handleCopy}
+                disabled={isProcessing}
+              >
+                📋 Copy
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleMove}
+                disabled={isProcessing}
+                style={{ background: "#8b5cf6" }}
+              >
+                📦 Move ({selectedItems.length})
+              </button>
+              <button
                 className="btn btn-danger"
                 onClick={handleBulkDelete}
                 disabled={isProcessing}
@@ -1027,13 +1171,24 @@ const FileManagerTab = () => {
         </div>
         <div className="toolbar-right">
           {selectedItems.length === 0 && (
-            <button
-              className="btn btn-secondary"
-              onClick={selectAll}
-              style={{ marginRight: "8px", fontSize: "0.9rem" }}
-            >
-              ☑️ Select All
-            </button>
+            <>
+              <button
+                className="btn btn-secondary"
+                onClick={selectAll}
+                style={{ marginRight: "8px", fontSize: "0.9rem" }}
+              >
+                ☑️ Select All
+              </button>
+              {clipboard.length > 0 && (
+                <button
+                  className="btn btn-primary"
+                  onClick={handlePaste}
+                  style={{ marginRight: "8px", fontSize: "0.9rem", background: "#10b981" }}
+                >
+                  📋 Paste ({clipboard.length})
+                </button>
+              )}
+            </>
           )}
           <span className="item-count">
             {filteredFolders.length + filteredFiles.length} item
@@ -1054,7 +1209,7 @@ const FileManagerTab = () => {
             {filteredFolders.map((folder) => (
               <div
                 key={folder.id}
-                className={`item folder-item ${isSelected("folder", folder.id) ? "selected" : ""}`}
+                className={`item folder-item ${isSelected("folder", folder.id) ? "selected" : ""} ${clipboard.some((i) => i.type === "folder" && i.id === folder.id) ? "cut" : ""}`}
                 onDoubleClick={() => {
                   if (selectedItems.length === 0) {
                     const newPath = currentFolder
@@ -1120,7 +1275,7 @@ const FileManagerTab = () => {
             {filteredFiles.map((file) => (
               <div
                 key={file.id}
-                className={`item file-item ${isSelected("file", file.id) ? "selected" : ""}`}
+                className={`item file-item ${isSelected("file", file.id) ? "selected" : ""} ${clipboard.some((i) => i.type === "file" && i.id === file.id) ? "cut" : ""}`}
                 style={{ position: "relative" }}
               >
                 <input
@@ -1573,6 +1728,21 @@ const FileManagerTab = () => {
             loadFilesAndFolders();
             setRenameItem(null);
             setRenameType(null);
+          }}
+        />
+      )}
+
+      {/* Move Modal */}
+      {showMoveModal && (
+        <MoveModal
+          items={clipboard.length > 0 ? clipboard : selectedItems}
+          currentFolder={currentFolder}
+          user={user}
+          onClose={() => setShowMoveModal(false)}
+          onSuccess={() => {
+            loadFilesAndFolders();
+            clearSelection();
+            setClipboard([]);
           }}
         />
       )}

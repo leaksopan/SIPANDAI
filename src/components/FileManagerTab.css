@@ -1042,3 +1042,18 @@ ed item state */
 .btn-danger:hover {
   background: #dc2626;
 }
+
+/* Copied items indicator */
+.item.cut {
+  opacity: 0.7;
+  border: 2px dashed #3b82f6 !important;
+  background: #dbeafe !important;
+}
+
+.item.cut::after {
+  content: "📋";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 16px;
+}
