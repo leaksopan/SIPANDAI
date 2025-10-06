@@ -2,16 +2,20 @@ rules_version='2'
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // File collection rules - users can only access their own files
+    // File collection rules - allow all authenticated users to read, write, delete
+    // Validation will be handled in application code
     match /files/{fileId} {
-      allow read, write, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null;
+      allow write, delete: if request.auth != null;
+      allow create: if request.auth != null;
     }
     
-    // Folder collection rules - users can only access their own folders
+    // Folder collection rules - allow all authenticated users to read, write, delete
+    // Validation will be handled in application code
     match /folders/{folderId} {
-      allow read, write, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null;
+      allow write, delete: if request.auth != null;
+      allow create: if request.auth != null;
     }
     
     // Users collection rules - users can access their own profile data

@@ -20,6 +20,10 @@ import { storage, db } from "../firebase/config";
 import useAuth from "../hooks/useAuth";
 import useUserRole from "../hooks/useUserRole";
 import * as XLSX from "xlsx";
+import FolderUpload from "./FolderUpload";
+import RenameModal from "./RenameModal";
+import DocxViewer from "./DocxViewer";
+import ExcelViewer from "./ExcelViewer";
 import "./FileManagerTab.css";
 
 const FileManagerTab = () => {
@@ -36,7 +40,7 @@ const FileManagerTab = () => {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [viewMode, setViewMode] = useState("grid"); // grid or list
-  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]); // {type: 'file'|'folder', id: string, data: object}
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [totalProgress, setTotalProgress] = useState(0);
@@ -46,12 +50,9 @@ const FileManagerTab = () => {
   const [csvRows, setCsvRows] = useState([]);
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvError, setCsvError] = useState(null);
-  const [xlsxRows, setXlsxRows] = useState([]);
-  const [xlsxLoading, setXlsxLoading] = useState(false);
-  const [xlsxError, setXlsxError] = useState(null);
-  const [xlsxSheets, setXlsxSheets] = useState([]);
-  const [activeSheet, setActiveSheet] = useState(0);
   const [uploaderInfoByUserId, setUploaderInfoByUserId] = useState({});
+  const [renameItem, setRenameItem] = useState(null);
+  const [renameType, setRenameType] = useState(null);
 
   useEffect(() => {
     if (user && !roleLoading) {
@@ -465,6 +466,113 @@ const FileManagerTab = () => {
     }
   };
 
+  // Toggle selection
+  const toggleSelection = (type, id, data) => {
+    setSelectedItems((prev) => {
+      const exists = prev.find((item) => item.type === type && item.id === id);
+      if (exists) {
+        return prev.filter((item) => !(item.type === type && item.id === id));
+      } else {
+        return [...prev, { type, id, data }];
+      }
+    });
+  };
+
+  // Check if item is selected
+  const isSelected = (type, id) => {
+    return selectedItems.some((item) => item.type === type && item.id === id);
+  };
+
+  // Select all visible items
+  const selectAll = () => {
+    const allItems = [
+      ...filteredFolders.map((f) => ({ type: "folder", id: f.id, data: f })),
+      ...filteredFiles.map((f) => ({ type: "file", id: f.id, data: f })),
+    ];
+    setSelectedItems(allItems);
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedItems([]);
+  };
+
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) return;
+
+    const fileCount = selectedItems.filter((i) => i.type === "file").length;
+    const folderCount = selectedItems.filter((i) => i.type === "folder").length;
+
+    if (!window.confirm(
+      `Hapus ${fileCount} file dan ${folderCount} folder?`
+    )) return;
+
+    setIsProcessing(true);
+    const results = { success: 0, failed: 0 };
+
+    try {
+      for (const item of selectedItems) {
+        try {
+          if (item.type === "file") {
+            const storageRef = ref(storage, item.data.storagePath);
+            await deleteObject(storageRef);
+            await deleteDoc(doc(db, "files", item.id));
+            results.success++;
+          } else if (item.type === "folder") {
+            // Check if folder is empty
+            const filesInFolder = query(
+              collection(db, "files"),
+              where("folder", "==", currentFolder ? `${currentFolder}/${item.data.name}` : item.data.name),
+              limit(1)
+            );
+            const snapshot = await getDocs(filesInFolder);
+            if (!snapshot.empty) {
+              results.failed++;
+              continue;
+            }
+            await deleteDoc(doc(db, "folders", item.id));
+            results.success++;
+          }
+        } catch (error) {
+          console.error("Error deleting item:", error);
+          results.failed++;
+        }
+      }
+
+      await loadFilesAndFolders();
+      clearSelection();
+      alert(`✅ Berhasil: ${results.success}, ❌ Gagal: ${results.failed}`);
+    } catch (error) {
+      console.error("Error in bulk delete:", error);
+      alert("Gagal melakukan bulk delete");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Bulk download
+  const handleBulkDownload = async () => {
+    const files = selectedItems.filter((i) => i.type === "file");
+    if (files.length === 0) {
+      alert("Pilih file untuk download");
+      return;
+    }
+
+    for (const item of files) {
+      const link = document.createElement("a");
+      link.href = item.data.url;
+      link.download = item.data.name;
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Delay between downloads
+    }
+
+    alert(`✅ Download ${files.length} file dimulai!`);
+  };
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -563,11 +671,23 @@ const FileManagerTab = () => {
     return type.includes("csv") || /\.csv$/i.test(name);
   };
 
+  const isDocxFile = (file) => {
+    if (!file) return false;
+    const type = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    return (
+      type.includes("wordprocessingml") ||
+      type.includes("msword") ||
+      /\.docx?$/i.test(name)
+    );
+  };
+
   const canPreviewFile = (file) =>
     isPdfFile(file) ||
     isImageFile(file) ||
     isExcelFile(file) ||
-    isCsvFile(file);
+    isCsvFile(file) ||
+    isDocxFile(file);
 
   // Simple CSV parser that handles quoted fields and commas inside quotes
   const parseCsv = (text, maxRows = 200) => {
@@ -682,286 +802,7 @@ const FileManagerTab = () => {
     };
   }, [previewFile]);
 
-  // XLSX parsing dengan multiple fallback methods
-  useEffect(() => {
-    let cancelled = false;
-    if (previewFile && isExcelFile(previewFile)) {
-      (async () => {
-        try {
-          setXlsxLoading(true);
-          setXlsxError(null);
-          setXlsxRows([]);
 
-          // Method 1: Try direct fetch (might work in some cases)
-          try {
-            console.log("🔄 XLSX Preview: Trying Method 1 - Direct Fetch");
-            const response = await fetch(previewFile.url);
-            if (cancelled) return;
-
-            if (response.ok) {
-              const arrayBuffer = await response.arrayBuffer();
-              if (cancelled) return;
-
-              const workbook = XLSX.read(arrayBuffer, { type: "array" });
-
-              // Parse all sheets with merged cells support
-              const sheetsData = workbook.SheetNames.map((sheetName, index) => {
-                const worksheet = workbook.Sheets[sheetName];
-
-                // Get sheet range
-                const range = XLSX.utils.decode_range(
-                  worksheet["!ref"] || "A1:A1"
-                );
-
-                // Get merged cells information
-                const merges = worksheet["!merges"] || [];
-                console.log(
-                  `📊 Method 1 - Found ${merges.length} merged cell ranges in sheet "${sheetName}":`,
-                  merges
-                );
-                const mergedCells = new Set();
-                const mergeMap = new Map();
-
-                // Process merged cells
-                merges.forEach((merge) => {
-                  const startRow = merge.s.r;
-                  const endRow = merge.e.r;
-                  const startCol = merge.s.c;
-                  const endCol = merge.e.c;
-
-                  // Mark all cells in merge range except top-left
-                  for (let r = startRow; r <= endRow; r++) {
-                    for (let c = startCol; c <= endCol; c++) {
-                      const cellKey = `${r}-${c}`;
-                      if (r === startRow && c === startCol) {
-                        // Top-left cell gets merge info
-                        mergeMap.set(cellKey, {
-                          rowspan: endRow - startRow + 1,
-                          colspan: endCol - startCol + 1,
-                          isMergeStart: true,
-                        });
-                      } else {
-                        // Other cells are marked as merged (hidden)
-                        mergedCells.add(cellKey);
-                      }
-                    }
-                  }
-                });
-
-                const jsonData = [];
-
-                // Parse row by row dengan merged cells
-                for (
-                  let rowNum = range.s.r;
-                  rowNum <= Math.min(range.e.r, range.s.r + 199);
-                  rowNum++
-                ) {
-                  const row = [];
-                  for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
-                    const cellKey = `${rowNum}-${colNum}`;
-                    const cellAddress = XLSX.utils.encode_cell({
-                      r: rowNum,
-                      c: colNum,
-                    });
-                    const cell = worksheet[cellAddress];
-                    const cellValue = cell ? cell.w || cell.v || "" : "";
-
-                    if (mergedCells.has(cellKey)) {
-                      // Skip merged cells (will be handled by parent)
-                      row.push({ hidden: true });
-                    } else if (mergeMap.has(cellKey)) {
-                      // Merged cell start
-                      const mergeInfo = mergeMap.get(cellKey);
-                      row.push({
-                        value: cellValue,
-                        rowspan: mergeInfo.rowspan,
-                        colspan: mergeInfo.colspan,
-                        isMerged: true,
-                      });
-                    } else {
-                      // Normal cell
-                      row.push({ value: cellValue });
-                    }
-                  }
-                  jsonData.push(row);
-                }
-
-                return {
-                  name: sheetName,
-                  data: jsonData,
-                  index: index,
-                };
-              });
-
-              setXlsxSheets(sheetsData);
-              setActiveSheet(0);
-              setXlsxRows(sheetsData[0]?.data || []);
-              console.log(
-                "✅ XLSX Preview: Method 1 completed with merged cells support"
-              );
-              console.log(
-                "📋 Parsed sheets:",
-                sheetsData.map((s) => ({ name: s.name, rows: s.data.length }))
-              );
-              return; // Success, exit
-            }
-          } catch (directError) {
-            console.log(
-              "❌ XLSX Preview: Method 1 failed, trying proxy method...",
-              directError
-            );
-          }
-
-          // Method 2: Try with CORS proxy
-          try {
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-              previewFile.url
-            )}`;
-            const response = await fetch(proxyUrl);
-            if (cancelled) return;
-
-            if (response.ok) {
-              const arrayBuffer = await response.arrayBuffer();
-              if (cancelled) return;
-
-              const workbook = XLSX.read(arrayBuffer, { type: "array" });
-
-              // Parse all sheets with merged cells support (same as Method 1)
-              const sheetsData = workbook.SheetNames.map((sheetName, index) => {
-                const worksheet = workbook.Sheets[sheetName];
-
-                // Get sheet range
-                const range = XLSX.utils.decode_range(
-                  worksheet["!ref"] || "A1:A1"
-                );
-
-                // Get merged cells information
-                const merges = worksheet["!merges"] || [];
-                console.log(
-                  `📊 Method 2 - Found ${merges.length} merged cell ranges in sheet "${sheetName}":`,
-                  merges
-                );
-                const mergedCells = new Set();
-                const mergeMap = new Map();
-
-                // Process merged cells
-                merges.forEach((merge) => {
-                  const startRow = merge.s.r;
-                  const endRow = merge.e.r;
-                  const startCol = merge.s.c;
-                  const endCol = merge.e.c;
-
-                  // Mark all cells in merge range except top-left
-                  for (let r = startRow; r <= endRow; r++) {
-                    for (let c = startCol; c <= endCol; c++) {
-                      const cellKey = `${r}-${c}`;
-                      if (r === startRow && c === startCol) {
-                        // Top-left cell gets merge info
-                        mergeMap.set(cellKey, {
-                          rowspan: endRow - startRow + 1,
-                          colspan: endCol - startCol + 1,
-                          isMergeStart: true,
-                        });
-                      } else {
-                        // Other cells are marked as merged (hidden)
-                        mergedCells.add(cellKey);
-                      }
-                    }
-                  }
-                });
-
-                const jsonData = [];
-
-                // Parse row by row dengan merged cells
-                for (
-                  let rowNum = range.s.r;
-                  rowNum <= Math.min(range.e.r, range.s.r + 199);
-                  rowNum++
-                ) {
-                  const row = [];
-                  for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
-                    const cellKey = `${rowNum}-${colNum}`;
-                    const cellAddress = XLSX.utils.encode_cell({
-                      r: rowNum,
-                      c: colNum,
-                    });
-                    const cell = worksheet[cellAddress];
-                    const cellValue = cell ? cell.w || cell.v || "" : "";
-
-                    if (mergedCells.has(cellKey)) {
-                      // Skip merged cells (will be handled by parent)
-                      row.push({ hidden: true });
-                    } else if (mergeMap.has(cellKey)) {
-                      // Merged cell start
-                      const mergeInfo = mergeMap.get(cellKey);
-                      row.push({
-                        value: cellValue,
-                        rowspan: mergeInfo.rowspan,
-                        colspan: mergeInfo.colspan,
-                        isMerged: true,
-                      });
-                    } else {
-                      // Normal cell
-                      row.push({ value: cellValue });
-                    }
-                  }
-                  jsonData.push(row);
-                }
-
-                return {
-                  name: sheetName,
-                  data: jsonData,
-                  index: index,
-                };
-              });
-
-              setXlsxSheets(sheetsData);
-              setActiveSheet(0);
-              setXlsxRows(sheetsData[0]?.data || []);
-              console.log(
-                "✅ XLSX Preview: Method 2 completed with merged cells support"
-              );
-              return; // Success, exit
-            }
-          } catch (proxyError) {
-            console.log(
-              "❌ XLSX Preview: Method 2 failed, showing fallback viewer...",
-              proxyError
-            );
-          }
-
-          // Method 3: If all else fails, show error and fallback to iframe
-          console.log(
-            "❌ XLSX Preview: All methods failed, using fallback iframe viewer"
-          );
-          throw new Error(
-            "Tidak dapat memuat XLSX untuk preview tabel, menggunakan viewer eksternal"
-          );
-        } catch (err) {
-          if (cancelled) return;
-          setXlsxError(err.message || String(err));
-        } finally {
-          if (!cancelled) setXlsxLoading(false);
-        }
-      })();
-    } else {
-      // reset when not XLSX or closing
-      setXlsxRows([]);
-      setXlsxLoading(false);
-      setXlsxError(null);
-      setXlsxSheets([]);
-      setActiveSheet(0);
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [previewFile]);
-
-  // Handle sheet change
-  const handleSheetChange = (sheetIndex) => {
-    setActiveSheet(sheetIndex);
-    setXlsxRows(xlsxSheets[sheetIndex]?.data || []);
-  };
 
   const getBreadcrumb = () => {
     if (!currentFolder) return ["Beranda"];
@@ -1112,46 +953,88 @@ const FileManagerTab = () => {
       {/* Toolbar */}
       <div className="toolbar">
         <div className="toolbar-left">
-          {hasPermission("canCreateFolders") && (
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowCreateFolder(true)}
-            >
-              📁 Buat Folder
-            </button>
-          )}
-          {hasPermission("canUploadFiles") && (
-            <label className="btn btn-secondary">
-              📤 Upload File
-              <input
-                id="fileInput"
-                type="file"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files);
-                  setSelectedFiles((prev) => [...prev, ...files]);
-                }}
-                style={{ display: "none" }}
-              />
-            </label>
-          )}
-          {selectedFiles.length > 0 && hasPermission("canUploadFiles") && (
-            <button
-              className="btn btn-success"
-              onClick={handleFileUpload}
-              disabled={uploading || isProcessing}
-            >
-              {uploading || isProcessing
-                ? `⏳ Uploading ${Object.keys(uploadProgress).length}/${
-                    selectedFiles.length
-                  }...`
-                : `✅ Upload ${selectedFiles.length} File${
-                    selectedFiles.length > 1 ? "s" : ""
-                  }`}
-            </button>
+          {selectedItems.length === 0 ? (
+            <>
+              {hasPermission("canCreateFolders") && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setShowCreateFolder(true)}
+                >
+                  📁 Buat Folder
+                </button>
+              )}
+              {hasPermission("canUploadFiles") && (
+                <>
+                  <label className="btn btn-secondary">
+                    📤 Upload File
+                    <input
+                      id="fileInput"
+                      type="file"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files);
+                        setSelectedFiles((prev) => [...prev, ...files]);
+                      }}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                  <FolderUpload
+                    user={user}
+                    currentFolder={currentFolder}
+                    onUploadComplete={loadFilesAndFolders}
+                  />
+                </>
+              )}
+              {selectedFiles.length > 0 && hasPermission("canUploadFiles") && (
+                <button
+                  className="btn btn-success"
+                  onClick={handleFileUpload}
+                  disabled={uploading || isProcessing}
+                >
+                  {uploading || isProcessing
+                    ? `⏳ Uploading ${Object.keys(uploadProgress).length}/${selectedFiles.length}...`
+                    : `✅ Upload ${selectedFiles.length} File${selectedFiles.length > 1 ? "s" : ""}`}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                className="btn btn-secondary"
+                onClick={clearSelection}
+              >
+                ✕ Clear ({selectedItems.length})
+              </button>
+              {selectedItems.some((i) => i.type === "file") && (
+                <button
+                  className="btn btn-primary"
+                  onClick={handleBulkDownload}
+                  disabled={isProcessing}
+                >
+                  ⬇️ Download ({selectedItems.filter((i) => i.type === "file").length})
+                </button>
+              )}
+              <button
+                className="btn btn-danger"
+                onClick={handleBulkDelete}
+                disabled={isProcessing}
+                style={{ background: "#ef4444" }}
+              >
+                🗑️ Delete ({selectedItems.length})
+              </button>
+            </>
           )}
         </div>
         <div className="toolbar-right">
+          {selectedItems.length === 0 && (
+            <button
+              className="btn btn-secondary"
+              onClick={selectAll}
+              style={{ marginRight: "8px", fontSize: "0.9rem" }}
+            >
+              ☑️ Select All
+            </button>
+          )}
           <span className="item-count">
             {filteredFolders.length + filteredFiles.length} item
           </span>
@@ -1171,22 +1054,53 @@ const FileManagerTab = () => {
             {filteredFolders.map((folder) => (
               <div
                 key={folder.id}
-                className="item folder-item"
+                className={`item folder-item ${isSelected("folder", folder.id) ? "selected" : ""}`}
                 onDoubleClick={() => {
-                  const newPath = currentFolder
-                    ? `${currentFolder}/${folder.name}`
-                    : folder.name;
-                  setCurrentFolder(newPath);
+                  if (selectedItems.length === 0) {
+                    const newPath = currentFolder
+                      ? `${currentFolder}/${folder.name}`
+                      : folder.name;
+                    setCurrentFolder(newPath);
+                  }
                 }}
                 style={{ position: "relative" }}
               >
+                <input
+                  type="checkbox"
+                  checked={isSelected("folder", folder.id)}
+                  onChange={() => toggleSelection("folder", folder.id, folder)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute",
+                    top: "8px",
+                    left: "8px",
+                    width: "18px",
+                    height: "18px",
+                    cursor: "pointer",
+                    zIndex: 10,
+                  }}
+                />
                 <div className="item-icon">📁</div>
                 <div className="item-info">
                   <div className="item-name">{folder.name}</div>
                   <div className="item-meta">Folder</div>
                 </div>
-                {hasPermission("canDeleteFolders") && (
-                  <div className="item-actions" style={{ marginLeft: "auto" }}>
+                <div className="item-actions" style={{ marginLeft: "auto" }}>
+                  {hasPermission("canCreateFolders") && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenameItem(folder);
+                        setRenameType("folder");
+                      }}
+                      className="action-btn"
+                      title="Rename folder"
+                      style={{ background: "#3498db", color: "white" }}
+                    >
+                      ✏️
+                    </button>
+                  )}
+                  {hasPermission("canDeleteFolders") && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1197,14 +1111,33 @@ const FileManagerTab = () => {
                     >
                       🗑️
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ))}
 
             {/* Files */}
             {filteredFiles.map((file) => (
-              <div key={file.id} className="item file-item">
+              <div
+                key={file.id}
+                className={`item file-item ${isSelected("file", file.id) ? "selected" : ""}`}
+                style={{ position: "relative" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected("file", file.id)}
+                  onChange={() => toggleSelection("file", file.id, file)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute",
+                    top: "8px",
+                    left: "8px",
+                    width: "18px",
+                    height: "18px",
+                    cursor: "pointer",
+                    zIndex: 10,
+                  }}
+                />
                 <div className="item-icon">{getFileIcon(file.type)}</div>
                 <div className="item-info">
                   <div className="item-name">{file.name}</div>
@@ -1241,6 +1174,19 @@ const FileManagerTab = () => {
                     >
                       ⬇️
                     </a>
+                  )}
+                  {hasPermission("canUploadFiles") && (
+                    <button
+                      onClick={() => {
+                        setRenameItem(file);
+                        setRenameType("file");
+                      }}
+                      className="action-btn"
+                      title="Rename"
+                      style={{ background: "#3498db", color: "white" }}
+                    >
+                      ✏️
+                    </button>
                   )}
                   {hasPermission("canDeleteFiles") && (
                     <button
@@ -1378,8 +1324,18 @@ const FileManagerTab = () => {
         </div>
       )}
 
-      {/* PDF Preview Modal */}
-      {previewFile && (
+      {/* DOCX Viewer */}
+      {previewFile && isDocxFile(previewFile) && (
+        <DocxViewer file={previewFile} onClose={() => setPreviewFile(null)} />
+      )}
+
+      {/* Excel Viewer */}
+      {previewFile && isExcelFile(previewFile) && (
+        <ExcelViewer file={previewFile} onClose={() => setPreviewFile(null)} />
+      )}
+
+      {/* PDF/Image/CSV Preview Modal */}
+      {previewFile && !isDocxFile(previewFile) && !isExcelFile(previewFile) && (
         <div className="modal-overlay" onClick={() => setPreviewFile(null)}>
           <div
             className="modal"
@@ -1434,248 +1390,6 @@ const FileManagerTab = () => {
                       objectFit: "contain",
                     }}
                   />
-                </div>
-              )}
-              {isExcelFile(previewFile) && (
-                <div
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    padding: "1rem",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  {xlsxLoading && (
-                    <div style={{ textAlign: "center", padding: "2rem" }}>
-                      <div
-                        style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}
-                      >
-                        ⏳
-                      </div>
-                      <div>Memuat Excel...</div>
-                    </div>
-                  )}
-
-                  {!xlsxLoading && xlsxRows.length > 0 && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        height: "100%",
-                      }}
-                    >
-                      {/* Success message and sheet selector */}
-                      <div style={{ marginBottom: "1rem", flexShrink: 0 }}>
-                        <div
-                          style={{
-                            padding: "8px 12px",
-                            backgroundColor: "#dcfce7",
-                            borderRadius: "6px",
-                            border: "1px solid #22c55e",
-                            fontSize: "0.9rem",
-                            color: "#166534",
-                            marginBottom:
-                              xlsxSheets.length > 1 ? "0.5rem" : "0",
-                          }}
-                        >
-                          ✅ <strong>Excel berhasil dimuat!</strong> Menampilkan{" "}
-                          {xlsxRows.length} baris data.
-                        </div>
-
-                        {/* Sheet selector jika ada multiple sheets */}
-                        {xlsxSheets.length > 1 && (
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "4px",
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            {xlsxSheets.map((sheet, index) => (
-                              <button
-                                key={index}
-                                onClick={() => handleSheetChange(index)}
-                                style={{
-                                  padding: "4px 8px",
-                                  fontSize: "0.8rem",
-                                  border: "1px solid #e5e7eb",
-                                  borderRadius: "4px",
-                                  backgroundColor:
-                                    activeSheet === index
-                                      ? "#3b82f6"
-                                      : "#ffffff",
-                                  color:
-                                    activeSheet === index
-                                      ? "#ffffff"
-                                      : "#374151",
-                                  cursor: "pointer",
-                                  transition: "all 0.2s ease",
-                                }}
-                                onMouseOver={(e) => {
-                                  if (activeSheet !== index) {
-                                    e.target.style.backgroundColor = "#f3f4f6";
-                                  }
-                                }}
-                                onMouseOut={(e) => {
-                                  if (activeSheet !== index) {
-                                    e.target.style.backgroundColor = "#ffffff";
-                                  }
-                                }}
-                              >
-                                {sheet.name}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Table container dengan proper scroll */}
-                      <div
-                        style={{
-                          flex: 1,
-                          overflow: "hidden",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "6px",
-                          backgroundColor: "#ffffff",
-                          position: "relative",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            overflow: "auto",
-                            maxHeight: "100%",
-                          }}
-                        >
-                          <table
-                            style={{
-                              width: "max-content",
-                              minWidth: "100%",
-                              borderCollapse: "collapse",
-                              fontSize: "0.8rem",
-                              tableLayout: "fixed",
-                            }}
-                          >
-                            <tbody>
-                              {xlsxRows.map((row, idx) => (
-                                <tr key={idx}>
-                                  {row.map((cell, j) => {
-                                    // Skip hidden cells (part of merged cells)
-                                    if (cell?.hidden) return null;
-
-                                    const cellValue =
-                                      typeof cell === "object"
-                                        ? cell.value
-                                        : cell;
-                                    const cellLength = cellValue?.length || 10;
-
-                                    return (
-                                      <td
-                                        key={j}
-                                        rowSpan={cell?.rowspan || 1}
-                                        colSpan={cell?.colspan || 1}
-                                        style={{
-                                          border: "1px solid #e5e7eb",
-                                          padding: "8px 12px",
-                                          whiteSpace: "pre-wrap",
-                                          wordBreak: "break-word",
-                                          overflowWrap: "break-word",
-                                          width: `${Math.max(
-                                            150,
-                                            Math.min(300, cellLength * 8)
-                                          )}px`,
-                                          maxWidth: "300px",
-                                          minWidth: "120px",
-                                          fontWeight:
-                                            idx === 0 ? "600" : "normal",
-                                          fontSize: "0.8rem",
-                                          lineHeight: "1.4",
-                                          verticalAlign: "top",
-                                          boxSizing: "border-box",
-                                          textAlign: cell?.isMerged
-                                            ? "center"
-                                            : "left",
-                                          backgroundColor: cell?.isMerged
-                                            ? idx === 0
-                                              ? "#f0f8ff"
-                                              : "#fafafa"
-                                            : idx === 0
-                                            ? "#f8fafc"
-                                            : idx % 2 === 0
-                                            ? "#ffffff"
-                                            : "#f9fafb",
-                                        }}
-                                      >
-                                        {cellValue || ""}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {!xlsxLoading && xlsxError && (
-                    <div>
-                      <div
-                        style={{
-                          marginBottom: "1rem",
-                          padding: "12px",
-                          backgroundColor: "#fef3c7",
-                          borderRadius: "8px",
-                          border: "1px solid #f59e0b",
-                        }}
-                      >
-                        <div style={{ color: "#92400e", fontSize: "0.9rem" }}>
-                          ⚠️ <strong>Fallback Viewer:</strong> {xlsxError}
-                        </div>
-                      </div>
-
-                      {/* Fallback ke Microsoft Office Online viewer sebagai alternatif */}
-                      <iframe
-                        title={`preview-xlsx-fallback-${previewFile.id}`}
-                        src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
-                          previewFile.url
-                        )}`}
-                        style={{
-                          width: "100%",
-                          height: "calc(100% - 80px)",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "8px",
-                          backgroundColor: "#ffffff",
-                        }}
-                        onLoad={() =>
-                          console.log("Fallback XLSX preview loaded")
-                        }
-                        onError={() =>
-                          console.log("Fallback XLSX preview failed")
-                        }
-                      />
-                    </div>
-                  )}
-
-                  {!xlsxLoading && !xlsxError && xlsxRows.length === 0 && (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "2rem",
-                        color: "#6b7280",
-                      }}
-                    >
-                      <div
-                        style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}
-                      >
-                        📊
-                      </div>
-                      <div>Tidak ada data untuk ditampilkan.</div>
-                    </div>
-                  )}
                 </div>
               )}
               {isCsvFile(previewFile) && (
@@ -1738,8 +1452,8 @@ const FileManagerTab = () => {
                                     idx === 0
                                       ? "#f3f4f6"
                                       : idx % 2 === 0
-                                      ? "#ffffff"
-                                      : "#f9fafb",
+                                        ? "#ffffff"
+                                        : "#f9fafb",
                                 }}
                               >
                                 {row.map((cell, j) => (
@@ -1844,6 +1558,23 @@ const FileManagerTab = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Rename Modal */}
+      {renameItem && (
+        <RenameModal
+          item={renameItem}
+          type={renameType}
+          onClose={() => {
+            setRenameItem(null);
+            setRenameType(null);
+          }}
+          onSuccess={() => {
+            loadFilesAndFolders();
+            setRenameItem(null);
+            setRenameType(null);
+          }}
+        />
       )}
     </div>
   );

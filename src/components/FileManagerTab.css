@@ -209,8 +209,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .items-container {
@@ -397,6 +402,7 @@
     opacity: 0;
     transform: translateY(-20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -495,6 +501,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -726,8 +733,15 @@
 }
 
 @keyframes progressPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .individual-progress {
@@ -830,36 +844,36 @@
     gap: 1rem;
     padding: 1rem;
   }
-  
+
   .header-right {
     width: 100%;
     justify-content: space-between;
   }
-  
+
   .search-input {
     width: 200px;
   }
-  
+
   .toolbar {
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
   }
-  
+
   .toolbar-left {
     width: 100%;
     justify-content: center;
     flex-wrap: wrap;
   }
-  
+
   .content-area {
     padding: 1rem;
   }
-  
+
   .items-container.grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
-  
+
   .selected-file-preview,
   .selected-files-preview {
     bottom: 1rem;
@@ -867,24 +881,164 @@
     left: 1rem;
     max-width: none;
   }
-  
+
   .selected-files-preview {
     max-height: 50vh;
   }
-  
+
   .files-list {
     max-height: 120px;
   }
-  
+
   .individual-progress {
     max-height: 100px;
   }
-  
+
   .file-preview-item .file-name {
     font-size: 0.8rem;
   }
-  
+
   .progress-info .file-name {
     font-size: 0.75rem;
   }
+}
+
+/* Folder Upload Progress Overlay */
+.upload-progress-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.upload-progress-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.upload-progress-modal h3 {
+  margin: 0 0 1.5rem 0;
+  color: #2c3e50;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.upload-progress-modal .total-progress {
+  margin-bottom: 1.5rem;
+}
+
+.upload-progress-modal .progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.upload-progress-modal .progress-bar {
+  height: 8px;
+  background: #ecf0f1;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.upload-progress-modal .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+.upload-progress-modal .individual-progress {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 1rem;
+  padding-right: 0.5rem;
+}
+
+.upload-progress-modal .file-progress-item {
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  border-left: 3px solid transparent;
+}
+
+.upload-progress-modal .file-progress-item .progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.upload-progress-modal .file-progress-item .file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #2c3e50;
+}
+
+.upload-progress-modal .file-progress-item .status-badge {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.upload-progress-modal .file-progress-item .error-message {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #fee;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #e74c3c;
+}
+
+/* Status colors */
+.upload-progress-modal .file-progress-item:has(.status-badge.uploading) {
+  border-left-color: #3498db;
+}
+
+.upload-progress-modal .file-progress-item:has(.status-badge.saving) {
+  border-left-color: #f39c12;
+}
+
+.upload-progress-modal .file-progress-item:has(.status-badge.success) {
+  border-left-color: #2ecc71;
+}
+
+.upload-progress-modal .file-progress-item:has(.status-badge.error) {
+  border-left-color: #e74c3c;
+}
+
+/* Select
+ed item state */
+.item.selected {
+  background: #dbeafe !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px #3b82f6 !important;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
 }

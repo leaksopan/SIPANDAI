@@ -1,8 +1,19 @@
 [
   {
-    "origin": ["http://localhost:3000", "http://localhost:3001", "https://sipandai-a67d1.web.app", "https://sipandai-a67d1.firebaseapp.com"],
-    "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
-    "responseHeader": ["Content-Type", "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"],
+    "origin": [
+      "*"
+    ],
+    "method": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Content-Disposition",
+      "Access-Control-Allow-Origin"
+    ],
     "maxAgeSeconds": 3600
   }
 ]

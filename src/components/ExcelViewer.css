@@ -1,0 +1,320 @@
+/* ExcelViewer Styles */
+
+.excel-viewer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.excel-viewer-container {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 1400px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.excel-viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 12px 12px 0 0;
+}
+
+.excel-viewer-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.excel-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.excel-filename {
+    font-weight: 600;
+    font-size: 16px;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.excel-viewer-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.excel-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.excel-btn-download {
+    background: #3b82f6;
+    color: white;
+}
+
+.excel-btn-download:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.excel-btn-retry {
+    background: #10b981;
+    color: white;
+}
+
+.excel-btn-retry:hover {
+    background: #059669;
+}
+
+.excel-btn-close {
+    background: #ef4444;
+    color: white;
+    padding: 8px 12px;
+}
+
+.excel-btn-close:hover {
+    background: #dc2626;
+}
+
+.excel-viewer-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #f3f4f6;
+}
+
+/* Loading State */
+.excel-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+}
+
+.excel-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.excel-loading p {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Error State */
+.excel-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    text-align: center;
+    padding: 40px;
+}
+
+.excel-error-icon {
+    font-size: 64px;
+}
+
+.excel-error h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+}
+
+.excel-error p {
+    color: #6b7280;
+    font-size: 14px;
+    margin: 0;
+    max-width: 500px;
+}
+
+.excel-error-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+/* Sheet Tabs */
+.excel-sheet-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+.excel-sheet-tab {
+    padding: 6px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
+    color: #6b7280;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.excel-sheet-tab:hover {
+    background: #f3f4f6;
+}
+
+.excel-sheet-tab.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+/* Table Container */
+.excel-table-container {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+}
+
+.excel-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.excel-cell {
+    border: 1px solid #e5e7eb;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    vertical-align: top;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-width: 120px;
+    max-width: 300px;
+}
+
+.excel-cell.header {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.excel-cell.merged {
+    background: #fafafa;
+    text-align: center;
+    font-weight: 500;
+}
+
+.excel-table tbody tr:nth-child(even) .excel-cell:not(.header):not(.merged) {
+    background: #f9fafb;
+}
+
+/* Info Bar */
+.excel-info {
+    padding: 12px 16px;
+    background: #dcfce7;
+    border-top: 1px solid #22c55e;
+    color: #166534;
+    font-size: 13px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .excel-viewer-overlay {
+        padding: 0;
+    }
+
+    .excel-viewer-container {
+        max-width: 100%;
+        height: 100vh;
+        border-radius: 0;
+    }
+
+    .excel-viewer-header {
+        border-radius: 0;
+        padding: 12px 16px;
+    }
+
+    .excel-filename {
+        font-size: 14px;
+    }
+
+    .excel-btn {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+
+    .excel-table-container {
+        padding: 12px;
+    }
+
+    .excel-cell {
+        font-size: 12px;
+        padding: 6px 8px;
+        min-width: 100px;
+    }
+}
