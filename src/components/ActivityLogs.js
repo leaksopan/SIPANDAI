@@ -7,6 +7,8 @@ import {
     getDocs,
     where,
     startAfter,
+    deleteDoc,
+    doc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import useAuth from "../hooks/useAuth";
@@ -22,6 +24,8 @@ const ActivityLogs = () => {
     const [filterUser, setFilterUser] = useState("");
     const [lastDoc, setLastDoc] = useState(null);
     const [hasMore, setHasMore] = useState(true);
+    const [selectedLogs, setSelectedLogs] = useState([]);
+    const [deleting, setDeleting] = useState(false);
 
     const LOGS_PER_PAGE = 50;
 
@@ -88,6 +92,54 @@ const ActivityLogs = () => {
             alert("Gagal memuat activity logs: " + error.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Toggle select log
+    const toggleSelectLog = (logId) => {
+        setSelectedLogs((prev) =>
+            prev.includes(logId) ? prev.filter((id) => id !== logId) : [...prev, logId]
+        );
+    };
+
+    // Select all visible logs
+    const selectAllLogs = () => {
+        if (selectedLogs.length === logs.length) {
+            setSelectedLogs([]);
+        } else {
+            setSelectedLogs(logs.map((log) => log.id));
+        }
+    };
+
+    // Delete selected logs
+    const deleteSelectedLogs = async () => {
+        if (selectedLogs.length === 0) {
+            alert("Pilih logs yang ingin dihapus");
+            return;
+        }
+
+        if (!window.confirm(`Hapus ${selectedLogs.length} logs yang dipilih?`)) {
+            return;
+        }
+
+        setDeleting(true);
+        try {
+            const deletePromises = selectedLogs.map((logId) =>
+                deleteDoc(doc(db, "activityLogs", logId))
+            );
+
+            await Promise.all(deletePromises);
+
+            // Remove deleted logs from state
+            setLogs((prev) => prev.filter((log) => !selectedLogs.includes(log.id)));
+            setSelectedLogs([]);
+
+            alert(`✅ Berhasil menghapus ${deletePromises.length} logs!`);
+        } catch (error) {
+            console.error("Error deleting logs:", error);
+            alert("Gagal menghapus logs");
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -162,10 +214,30 @@ const ActivityLogs = () => {
                 <div className="logs-stats">
                     <div className="stat-item">
                         <span className="stat-value">{logs.length}</span>
-                        <span className="stat-label">Total Logs</span>
+                        <span className="stat-label">Showing</span>
                     </div>
+                    {selectedLogs.length > 0 && (
+                        <div className="stat-item" style={{ backgroundColor: "#fee2e2" }}>
+                            <span className="stat-value" style={{ color: "#dc2626" }}>
+                                {selectedLogs.length}
+                            </span>
+                            <span className="stat-label">Selected</span>
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Delete Actions */}
+            {selectedLogs.length > 0 && (
+                <div className="delete-actions">
+                    <button onClick={deleteSelectedLogs} disabled={deleting} className="btn-delete-selected">
+                        {deleting ? "⏳ Menghapus..." : `🗑️ Hapus ${selectedLogs.length} Logs`}
+                    </button>
+                    <button onClick={() => setSelectedLogs([])} className="btn-cancel-select">
+                        ✖️ Batal
+                    </button>
+                </div>
+            )}
 
             {/* Filters */}
             <div className="logs-filters">
@@ -235,6 +307,14 @@ const ActivityLogs = () => {
                         <table className="logs-table">
                             <thead>
                                 <tr>
+                                    <th style={{ width: "40px" }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedLogs.length === logs.length && logs.length > 0}
+                                            onChange={selectAllLogs}
+                                            style={{ cursor: "pointer" }}
+                                        />
+                                    </th>
                                     <th>Waktu</th>
                                     <th>User</th>
                                     <th>Email</th>
@@ -245,7 +325,18 @@ const ActivityLogs = () => {
                             </thead>
                             <tbody>
                                 {logs.map((log) => (
-                                    <tr key={log.id}>
+                                    <tr
+                                        key={log.id}
+                                        className={selectedLogs.includes(log.id) ? "selected-row" : ""}
+                                    >
+                                        <td>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedLogs.includes(log.id)}
+                                                onChange={() => toggleSelectLog(log.id)}
+                                                style={{ cursor: "pointer" }}
+                                            />
+                                        </td>
                                         <td className="log-time">
                                             {formatTimestamp(log.timestamp || log.createdAt)}
                                         </td>
