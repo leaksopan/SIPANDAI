@@ -8,6 +8,7 @@ const useUserRole = () => {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cachedPermissions, setCachedPermissions] = useState(null);
 
   // Role hierarchy
   const ROLES = {
@@ -88,6 +89,7 @@ const useUserRole = () => {
     const fetchUserRole = async () => {
       if (!user) {
         setUserRole(null);
+        setCachedPermissions(null);
         setLoading(false);
         return;
       }
@@ -100,6 +102,19 @@ const useUserRole = () => {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setUserRole(userData);
+
+          // Load permissions from Firestore
+          try {
+            const permissionsDoc = await getDoc(doc(db, "system", "permissions"));
+            if (permissionsDoc.exists()) {
+              setCachedPermissions(permissionsDoc.data());
+            } else {
+              setCachedPermissions(ROLE_PERMISSIONS);
+            }
+          } catch (permErr) {
+            console.warn("Failed to load permissions, using fallback:", permErr);
+            setCachedPermissions(ROLE_PERMISSIONS);
+          }
         } else {
           // Create new user document with default guest role
           const newUserData = {
@@ -115,6 +130,7 @@ const useUserRole = () => {
 
           await setDoc(userDocRef, newUserData);
           setUserRole(newUserData);
+          setCachedPermissions(ROLE_PERMISSIONS);
         }
       } catch (err) {
         console.error("Error fetching user role:", err);
@@ -152,13 +168,13 @@ const useUserRole = () => {
     [user?.uid]
   );
 
-  // Check permissions
+  // Check permissions - Use cached permissions
   const hasPermission = useCallback(
     (permission) => {
-      if (!userRole?.role) return false;
-      return ROLE_PERMISSIONS[userRole.role]?.[permission] || false;
+      if (!userRole?.role || !cachedPermissions) return false;
+      return cachedPermissions[userRole.role]?.[permission] || false;
     },
-    [userRole?.role]
+    [userRole?.role, cachedPermissions]
   );
 
   // Get role label

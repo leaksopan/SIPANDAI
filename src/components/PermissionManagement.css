@@ -1,0 +1,288 @@
+.permission-management {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    padding: 24px;
+}
+
+.pm-header {
+    margin-bottom: 32px;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 16px;
+}
+
+.pm-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.pm-header p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.pm-content {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 24px;
+    min-height: 500px;
+}
+
+/* Role List */
+.role-list {
+    border-right: 2px solid #e5e7eb;
+    padding-right: 24px;
+}
+
+.role-list h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.role-item {
+    padding: 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 2px solid transparent;
+}
+
+.role-item:hover {
+    background-color: #f3f4f6;
+}
+
+.role-item.active {
+    background-color: #dbeafe;
+    border-color: #3b82f6;
+}
+
+.role-info {
+    flex: 1;
+}
+
+.role-name {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+}
+
+.role-desc {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.role-item .check {
+    color: #3b82f6;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* Permissions Editor */
+.permissions-editor {
+    padding-left: 24px;
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.editor-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.editor-header p {
+    margin: 0;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.editor-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-action {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-select-all {
+    background-color: #10b981;
+    color: white;
+}
+
+.btn-select-all:hover {
+    background-color: #059669;
+}
+
+.btn-clear-all {
+    background-color: #ef4444;
+    color: white;
+}
+
+.btn-clear-all:hover {
+    background-color: #dc2626;
+}
+
+/* Permissions Grid */
+.permissions-grid {
+    display: grid;
+    gap: 24px;
+}
+
+.permission-category {
+    background-color: #f9fafb;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.category-title {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.permission-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.permission-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.permission-item:hover {
+    background-color: #f3f4f6;
+}
+
+.permission-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.permission-label {
+    font-size: 14px;
+    color: #374151;
+    user-select: none;
+}
+
+/* Editor Footer */
+.editor-footer {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 2px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.btn-save {
+    padding: 12px 32px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-save:hover {
+    background-color: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+}
+
+.btn-save:disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* States */
+.loading-state,
+.access-denied,
+.no-selection {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px;
+    text-align: center;
+}
+
+.loading-state .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-state p,
+.access-denied p,
+.no-selection p {
+    margin: 8px 0 0 0;
+    color: #6b7280;
+    font-size: 16px;
+}
+
+.access-denied .icon,
+.no-selection .icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.access-denied h3 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.loading-small {
+    padding: 16px;
+    text-align: center;
+    color: #6b7280;
+}

@@ -5,6 +5,7 @@ import FileManagerTab from "./FileManagerTab";
 import UserManagement from "./UserManagement";
 import StaffApplicationForm from "./StaffApplicationForm";
 import ApplicationManagement from "./ApplicationManagement";
+import PermissionManagement from "./PermissionManagement";
 
 const Dashboard = () => {
   const { user, handleLogout } = useAuth();
@@ -135,12 +136,12 @@ const Dashboard = () => {
                         userRole.role === "super_admin"
                           ? "#dc2626"
                           : userRole.role === "Irban"
-                          ? "#2563eb"
-                          : userRole.role === "Auditor"
-                          ? "#16a34a"
-                          : userRole.role === "guest"
-                          ? "#9333ea"
-                          : "#6b7280",
+                            ? "#2563eb"
+                            : userRole.role === "Auditor"
+                              ? "#16a34a"
+                              : userRole.role === "guest"
+                                ? "#9333ea"
+                                : "#6b7280",
                       color: "white",
                       padding: "2px 8px",
                       borderRadius: "12px",
@@ -281,7 +282,7 @@ const Dashboard = () => {
                   activeTab === "usermanagement" ? "#3b82f6" : "transparent",
                 color: activeTab === "usermanagement" ? "white" : "#6b7280",
                 border: "none",
-                borderRadius: "0 12px 0 0",
+                borderRadius: isSuperAdmin ? "0" : "0 12px 0 0",
                 cursor: "pointer",
                 fontSize: "16px",
                 fontWeight: "500",
@@ -290,6 +291,27 @@ const Dashboard = () => {
               }}
             >
               👥 User Management
+            </button>
+          )}
+
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab("permissions")}
+              style={{
+                padding: "16px 24px",
+                backgroundColor:
+                  activeTab === "permissions" ? "#3b82f6" : "transparent",
+                color: activeTab === "permissions" ? "white" : "#6b7280",
+                border: "none",
+                borderRadius: "0 12px 0 0",
+                cursor: "pointer",
+                fontSize: "16px",
+                fontWeight: "500",
+                transition: "all 0.2s",
+                flex: 1,
+              }}
+            >
+              🔐 Permissions
             </button>
           )}
         </div>
@@ -475,6 +497,11 @@ const Dashboard = () => {
       {/* User Management Tab */}
       {activeTab === "usermanagement" && hasPermission("canManageRoles") && (
         <UserManagement />
+      )}
+
+      {/* Permission Management Tab */}
+      {activeTab === "permissions" && isSuperAdmin && (
+        <PermissionManagement />
       )}
     </div>
   );

@@ -1,0 +1,141 @@
+/* SearchableSelect Styles */
+
+.searchable-select {
+    position: relative;
+    width: 100%;
+}
+
+.select-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+.select-display:hover {
+    border-color: #9ca3af;
+}
+
+.select-display.open {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.select-display .placeholder {
+    color: #9ca3af;
+}
+
+.select-display .arrow {
+    color: #6b7280;
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.select-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+    animation: dropdownSlide 0.2s ease-out;
+}
+
+@keyframes dropdownSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.search-input-container {
+    padding: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.search-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+}
+
+.search-input:focus {
+    border-color: #3b82f6;
+}
+
+.options-list {
+    overflow-y: auto;
+    max-height: 220px;
+    flex: 1;
+}
+
+.option-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #374151;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.option-item:hover {
+    background: #f3f4f6;
+}
+
+.option-item.selected {
+    background: #dbeafe;
+    color: #1e40af;
+    font-weight: 500;
+}
+
+.check-mark {
+    color: #3b82f6;
+    font-weight: bold;
+}
+
+.no-results {
+    padding: 16px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+/* Scrollbar Styling */
+.options-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.options-list::-webkit-scrollbar-track {
+    background: #f3f4f6;
+}
+
+.options-list::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+}
+
+.options-list::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}

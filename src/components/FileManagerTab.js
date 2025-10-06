@@ -25,6 +25,7 @@ import RenameModal from "./RenameModal";
 import DocxViewer from "./DocxViewer";
 import ExcelViewer from "./ExcelViewer";
 import MoveModal from "./MoveModal";
+import AdvancedSearch from "./AdvancedSearch";
 import "./FileManagerTab.css";
 
 const FileManagerTab = () => {
@@ -56,6 +57,7 @@ const FileManagerTab = () => {
   const [renameType, setRenameType] = useState(null);
   const [clipboard, setClipboard] = useState([]); // Cut items
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState({});
 
   useEffect(() => {
     if (user && !roleLoading) {
@@ -938,19 +940,118 @@ const FileManagerTab = () => {
     return ["Beranda", ...currentFolder.split("/")];
   };
 
-  // Jika ada search term, cari di semua files. Jika tidak, tampilkan files di folder aktif
-  const filteredFiles = (searchTerm ? allFiles : files).filter((file) => {
-    const matchesText = file.name
-      ?.toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const matchesDate =
-      !startDate && !endDate ? true : isWithinDateRange(file.createdAt);
-    return matchesText && matchesDate;
-  });
+  // Apply advanced filters
+  const applyAdvancedFilters = (filesList) => {
+    return filesList.filter((file) => {
+      // Search term
+      if (advancedFilters.searchTerm) {
+        const matchesName = file.name
+          ?.toLowerCase()
+          .includes(advancedFilters.searchTerm.toLowerCase());
+        if (!matchesName) return false;
+      }
 
-  const filteredFolders = folders.filter((folder) =>
-    folder.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      // File type
+      if (advancedFilters.fileType) {
+        const type = (file.type || "").toLowerCase();
+        const name = (file.name || "").toLowerCase();
+        let matches = false;
+
+        switch (advancedFilters.fileType) {
+          case "pdf":
+            matches = type.includes("pdf") || name.endsWith(".pdf");
+            break;
+          case "word":
+            matches =
+              type.includes("word") ||
+              type.includes("document") ||
+              /\.docx?$/i.test(name);
+            break;
+          case "excel":
+            matches =
+              type.includes("excel") ||
+              type.includes("spreadsheet") ||
+              /\.xlsx?$/i.test(name);
+            break;
+          case "csv":
+            matches = type.includes("csv") || name.endsWith(".csv");
+            break;
+          case "image":
+            matches = type.includes("image");
+            break;
+          case "video":
+            matches = type.includes("video");
+            break;
+          case "audio":
+            matches = type.includes("audio");
+            break;
+          default:
+            matches = true;
+        }
+        if (!matches) return false;
+      }
+
+      // Uploader
+      if (advancedFilters.uploader && file.userId !== advancedFilters.uploader) {
+        return false;
+      }
+
+      // Size range (in KB)
+      if (advancedFilters.sizeMin || advancedFilters.sizeMax) {
+        const fileSizeKB = file.size / 1024;
+        if (advancedFilters.sizeMin && fileSizeKB < parseFloat(advancedFilters.sizeMin)) {
+          return false;
+        }
+        if (advancedFilters.sizeMax && fileSizeKB > parseFloat(advancedFilters.sizeMax)) {
+          return false;
+        }
+      }
+
+      // Date range
+      if (advancedFilters.dateFrom || advancedFilters.dateTo) {
+        const fileDate = toJsDate(file.createdAt);
+        if (!fileDate || Number.isNaN(fileDate.getTime())) return false;
+
+        if (advancedFilters.dateFrom) {
+          const start = new Date(advancedFilters.dateFrom);
+          start.setHours(0, 0, 0, 0);
+          if (fileDate < start) return false;
+        }
+
+        if (advancedFilters.dateTo) {
+          const end = new Date(advancedFilters.dateTo);
+          end.setHours(23, 59, 59, 999);
+          if (fileDate > end) return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  // Get unique uploaders for filter
+  const getUniqueUploaders = () => {
+    const uniqueUserIds = [...new Set(allFiles.map((f) => f.userId))];
+    return uniqueUserIds
+      .map((userId) => ({
+        userId,
+        displayName: uploaderInfoByUserId[userId]?.displayName || userId,
+      }))
+      .filter((u) => u.userId);
+  };
+
+  // Apply filters
+  const hasAdvancedFilters = Object.values(advancedFilters).some((v) => v !== "");
+  const filteredFiles = applyAdvancedFilters(hasAdvancedFilters ? allFiles : files);
+
+  const filteredFolders = folders.filter((folder) => {
+    if (advancedFilters.searchTerm) {
+      return folder.name
+        .toLowerCase()
+        .includes(advancedFilters.searchTerm.toLowerCase());
+    }
+    return true;
+  });
 
   if (!user) {
     return (
@@ -964,118 +1065,76 @@ const FileManagerTab = () => {
 
   return (
     <div className="file-manager-container">
-      {/* Header */}
+      {/* Header with Search */}
       <div className="file-manager-header">
-        <div className="header-left">
-          {currentFolder && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => {
-                const parts = currentFolder.split("/");
-                parts.pop();
-                setCurrentFolder(parts.join("/"));
-              }}
-              title="Kembali ke folder sebelumnya"
-              aria-label="Kembali ke folder sebelumnya"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                marginRight: "8px",
-              }}
-            >
-              ← Kembali
-            </button>
-          )}
-          <h2>📚 Arsip Digital Pemerintah</h2>
-          <div className="breadcrumb">
-            {getBreadcrumb().map((crumb, index) => (
-              <span key={index}>
-                {index > 0 && <span className="breadcrumb-separator">›</span>}
-                <button
-                  className="breadcrumb-item"
-                  onClick={() => {
-                    if (index === 0) {
-                      setCurrentFolder("");
-                    } else {
-                      const path = getBreadcrumb().slice(1, index).join("/");
-                      setCurrentFolder(path);
-                    }
-                  }}
-                >
-                  {crumb}
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="header-right">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Cari file atau folder..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-            <span className="search-icon">🔍</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ color: "#7f8c8d", fontSize: "0.9rem" }}>Dari</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  padding: "6px 8px",
-                  border: "1px solid #e1e8ed",
-                  borderRadius: "6px",
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ color: "#7f8c8d", fontSize: "0.9rem" }}>
-                Sampai
-              </span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  padding: "6px 8px",
-                  border: "1px solid #e1e8ed",
-                  borderRadius: "6px",
-                }}
-              />
-            </div>
-            {(startDate || endDate) && (
+        <div className="header-top">
+          <div className="header-left">
+            {currentFolder && (
               <button
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                }}
                 className="btn btn-secondary"
-                title="Reset filter tanggal"
+                onClick={() => {
+                  const parts = currentFolder.split("/");
+                  parts.pop();
+                  setCurrentFolder(parts.join("/"));
+                }}
+                title="Kembali ke folder sebelumnya"
+                aria-label="Kembali ke folder sebelumnya"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginRight: "8px",
+                }}
               >
-                Reset
+                ← Kembali
               </button>
             )}
+            <h2>📚 Arsip Digital Pemerintah</h2>
+            <div className="breadcrumb">
+              {getBreadcrumb().map((crumb, index) => (
+                <span key={index}>
+                  {index > 0 && <span className="breadcrumb-separator">›</span>}
+                  <button
+                    className="breadcrumb-item"
+                    onClick={() => {
+                      if (index === 0) {
+                        setCurrentFolder("");
+                      } else {
+                        const path = getBreadcrumb().slice(1, index).join("/");
+                        setCurrentFolder(path);
+                      }
+                    }}
+                  >
+                    {crumb}
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="view-toggle">
-            <button
-              className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
-              onClick={() => setViewMode("grid")}
-            >
-              ⊞
-            </button>
-            <button
-              className={`view-btn ${viewMode === "list" ? "active" : ""}`}
-              onClick={() => setViewMode("list")}
-            >
-              ☰
-            </button>
+          <div className="header-right">
+            <div className="view-toggle">
+              <button
+                className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+                onClick={() => setViewMode("grid")}
+              >
+                ⊞
+              </button>
+              <button
+                className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+                onClick={() => setViewMode("list")}
+              >
+                ☰
+              </button>
+            </div>
           </div>
+        </div>
+
+        {/* Search Bar in Header */}
+        <div className="header-search">
+          <AdvancedSearch
+            onFilterChange={setAdvancedFilters}
+            uploaders={getUniqueUploaders()}
+          />
         </div>
       </div>
 
@@ -1296,7 +1355,7 @@ const FileManagerTab = () => {
                 <div className="item-icon">{getFileIcon(file.type)}</div>
                 <div className="item-info">
                   <div className="item-name">{file.name}</div>
-                  {searchTerm && file.folder && (
+                  {(advancedFilters.searchTerm || hasAdvancedFilters) && file.folder && (
                     <div className="item-path">📁 {file.folder}</div>
                   )}
                   <div className="item-meta">

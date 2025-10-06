@@ -9,10 +9,18 @@
   backdrop-filter: blur(10px);
   padding: 1.5rem 2rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+}
+
+.header-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  margin-bottom: 12px;
+}
+
+.header-search {
+  margin-top: 0;
 }
 
 .header-left h2 {
