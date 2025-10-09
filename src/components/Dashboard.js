@@ -7,6 +7,7 @@ import StaffApplicationForm from "./StaffApplicationForm";
 import ApplicationManagement from "./ApplicationManagement";
 import PermissionManagement from "./PermissionManagement";
 import ActivityLogs from "./ActivityLogs";
+import StorageUsage from "./StorageUsage";
 
 const Dashboard = () => {
   const { user, handleLogout } = useAuth();
@@ -137,12 +138,12 @@ const Dashboard = () => {
                         userRole.role === "super_admin"
                           ? "#dc2626"
                           : userRole.role === "Irban"
-                            ? "#2563eb"
-                            : userRole.role === "Auditor"
-                              ? "#16a34a"
-                              : userRole.role === "guest"
-                                ? "#9333ea"
-                                : "#6b7280",
+                          ? "#2563eb"
+                          : userRole.role === "Auditor"
+                          ? "#16a34a"
+                          : userRole.role === "guest"
+                          ? "#9333ea"
+                          : "#6b7280",
                       color: "white",
                       padding: "2px 8px",
                       borderRadius: "12px",
@@ -325,7 +326,7 @@ const Dashboard = () => {
                   activeTab === "logs" ? "#3b82f6" : "transparent",
                 color: activeTab === "logs" ? "white" : "#6b7280",
                 border: "none",
-                borderRadius: "0 12px 0 0",
+                borderRadius: isSuperAdmin ? "0" : "0 12px 0 0",
                 cursor: "pointer",
                 fontSize: "16px",
                 fontWeight: "500",
@@ -334,6 +335,27 @@ const Dashboard = () => {
               }}
             >
               📊 Activity Logs
+            </button>
+          )}
+
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab("storage")}
+              style={{
+                padding: "16px 24px",
+                backgroundColor:
+                  activeTab === "storage" ? "#3b82f6" : "transparent",
+                color: activeTab === "storage" ? "white" : "#6b7280",
+                border: "none",
+                borderRadius: "0 12px 0 0",
+                cursor: "pointer",
+                fontSize: "16px",
+                fontWeight: "500",
+                transition: "all 0.2s",
+                flex: 1,
+              }}
+            >
+              💾 Storage Usage
             </button>
           )}
         </div>
@@ -522,14 +544,13 @@ const Dashboard = () => {
       )}
 
       {/* Permission Management Tab */}
-      {activeTab === "permissions" && isSuperAdmin && (
-        <PermissionManagement />
-      )}
+      {activeTab === "permissions" && isSuperAdmin && <PermissionManagement />}
 
       {/* Activity Logs Tab */}
-      {activeTab === "logs" && hasPermission("canViewLogs") && (
-        <ActivityLogs />
-      )}
+      {activeTab === "logs" && hasPermission("canViewLogs") && <ActivityLogs />}
+
+      {/* Storage Usage Tab */}
+      {activeTab === "storage" && isSuperAdmin && <StorageUsage />}
     </div>
   );
 };
