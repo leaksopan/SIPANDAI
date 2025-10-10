@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { getStorage, ref, listAll, getMetadata } from "firebase/storage";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { getStorage, ref, listAll, getMetadata, deleteObject } from "firebase/storage";
+import { collection, getDocs, query, where, doc, deleteDoc } from "firebase/firestore";
 import app, { db } from "../firebase/config";
 import useAuth from "../hooks/useAuth";
 import useUserRole from "../hooks/useUserRole";
@@ -17,6 +17,11 @@ const StorageUsage = () => {
     isSuperAdminView: false,
   });
 
+  const [filesList, setFilesList] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [userInfoCache, setUserInfoCache] = useState({});
+
   const storage = getStorage(app);
 
   const formatBytes = (bytes) => {
@@ -25,6 +30,72 @@ const StorageUsage = () => {
     const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const extractFolderPath = (fullPath) => {
+    if (!fullPath || fullPath === "Unknown path") return "Unknown";
+
+    // Remove "users/{userId}/" prefix and filename
+    // Example: "users/ABC123/folder1/folder2/file.pdf" -> "folder1/folder2/"
+    const parts = fullPath.split("/");
+
+    // If path starts with "users/{userId}/", remove those parts
+    let startIndex = 0;
+    if (parts[0] === "users" && parts.length > 2) {
+      startIndex = 2; // Skip "users" and userId
+    }
+
+    // Remove filename (last part)
+    const folderParts = parts.slice(startIndex, -1);
+
+    if (folderParts.length === 0) return "Root";
+    return folderParts.join("/") + "/";
+  };
+
+  const getUserDisplayName = (userId) => {
+    if (!userId || userId === "Unknown") return "Unknown User";
+
+    // Check cache first
+    if (userInfoCache[userId]) {
+      return userInfoCache[userId];
+    }
+
+    // Return truncated UID while loading
+    return userId.length > 8 ? userId.substring(0, 8) + "..." : userId;
+  };
+
+  // Fetch user info from Firestore
+  const fetchUserInfo = async (userIds) => {
+    const uniqueIds = [...new Set(userIds)].filter(id => id && id !== "Unknown" && !userInfoCache[id]);
+
+    if (uniqueIds.length === 0) return;
+
+    try {
+      const updates = {};
+
+      for (const uid of uniqueIds) {
+        try {
+          const userQuery = query(collection(db, "users"), where("uid", "==", uid));
+          const userSnapshot = await getDocs(userQuery);
+
+          if (!userSnapshot.empty) {
+            const userData = userSnapshot.docs[0].data();
+            updates[uid] = userData.displayName || userData.name || userData.email || uid;
+          } else {
+            updates[uid] = uid.substring(0, 8) + "...";
+          }
+        } catch (error) {
+          console.warn(`Error fetching user info for ${uid}:`, error);
+          updates[uid] = uid.substring(0, 8) + "...";
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setUserInfoCache(prev => ({ ...prev, ...updates }));
+      }
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+    }
   };
 
   const calculateStorageUsage = async () => {
@@ -37,6 +108,7 @@ const StorageUsage = () => {
 
       let totalSize = 0;
       let fileCount = 0;
+      let filesArray = [];
 
       if (isSuperAdmin) {
         // Super admin: Hitung dari Firestore (semua file)
@@ -45,11 +117,20 @@ const StorageUsage = () => {
           const filesQuery = query(collection(db, "files"));
           const filesSnapshot = await getDocs(filesQuery);
 
-          filesSnapshot.forEach((doc) => {
-            const fileData = doc.data();
+          filesSnapshot.forEach((docSnap) => {
+            const fileData = docSnap.data();
             if (fileData.size) {
               totalSize += fileData.size;
               fileCount++;
+              filesArray.push({
+                id: docSnap.id,
+                name: fileData.name || "Unknown",
+                size: fileData.size,
+                path: fileData.storagePath || fileData.fullPath || fileData.path || "Unknown path",
+                url: fileData.url || null,
+                userId: fileData.userId || "Unknown",
+                uploadedAt: fileData.uploadedAt || fileData.createdAt || null,
+              });
             }
           });
 
@@ -67,20 +148,32 @@ const StorageUsage = () => {
           const userResult = await calculateUserStorage();
           totalSize = userResult.totalSize;
           fileCount = userResult.fileCount;
+          filesArray = userResult.filesArray;
         }
       } else {
         // User biasa: hitung dari folder mereka sendiri
         const userResult = await calculateUserStorage();
         totalSize = userResult.totalSize;
         fileCount = userResult.fileCount;
+        filesArray = userResult.filesArray;
       }
 
+      // Sort by size descending
+      filesArray.sort((a, b) => b.size - a.size);
+
+      setFilesList(filesArray);
       setStorageInfo({
         totalSize,
         fileCount,
         loading: false,
         error: null,
       });
+
+      // Fetch user info for all unique user IDs
+      const userIds = filesArray.map(f => f.userId).filter(Boolean);
+      if (userIds.length > 0) {
+        await fetchUserInfo(userIds);
+      }
     } catch (error) {
       console.error("Error calculating storage usage:", error);
       setStorageInfo({
@@ -96,6 +189,7 @@ const StorageUsage = () => {
   const calculateUserStorage = async () => {
     let totalSize = 0;
     let fileCount = 0;
+    let filesArray = [];
 
     try {
       // Hitung dari Firestore (file user sendiri)
@@ -105,11 +199,20 @@ const StorageUsage = () => {
       );
       const userFilesSnapshot = await getDocs(userFilesQuery);
 
-      userFilesSnapshot.forEach((doc) => {
-        const fileData = doc.data();
+      userFilesSnapshot.forEach((docSnap) => {
+        const fileData = docSnap.data();
         if (fileData.size) {
           totalSize += fileData.size;
           fileCount++;
+          filesArray.push({
+            id: docSnap.id,
+            name: fileData.name || "Unknown",
+            size: fileData.size,
+            path: fileData.storagePath || fileData.fullPath || fileData.path || "Unknown path",
+            url: fileData.url || null,
+            userId: fileData.userId || user.uid,
+            uploadedAt: fileData.uploadedAt || fileData.createdAt || null,
+          });
         }
       });
     } catch (error) {
@@ -120,12 +223,13 @@ const StorageUsage = () => {
         const result = await calculateFolderSize(userFolderRef);
         totalSize = result.totalSize;
         fileCount = result.fileCount;
+        filesArray = result.filesArray;
       } catch (storageError) {
         console.warn("Error accessing user storage folder:", storageError);
       }
     }
 
-    return { totalSize, fileCount };
+    return { totalSize, fileCount, filesArray };
   };
 
   // Fungsi rekursif untuk menghitung folder di storage (fallback)
@@ -170,7 +274,69 @@ const StorageUsage = () => {
   }, [user, isSuperAdmin]);
 
   const refreshData = () => {
+    setSelectedFiles([]);
     calculateStorageUsage();
+  };
+
+  const handleSelectFile = (fileId) => {
+    setSelectedFiles((prev) =>
+      prev.includes(fileId)
+        ? prev.filter((id) => id !== fileId)
+        : [...prev, fileId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedFiles.length === filesList.length) {
+      setSelectedFiles([]);
+    } else {
+      setSelectedFiles(filesList.map((file) => file.id));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedFiles.length === 0) return;
+
+    const confirmDelete = window.confirm(
+      `Apakah Anda yakin ingin menghapus ${selectedFiles.length} file?`
+    );
+
+    if (!confirmDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      const deletePromises = selectedFiles.map(async (fileId) => {
+        const fileToDelete = filesList.find((f) => f.id === fileId);
+        if (!fileToDelete) return;
+
+        // Delete from Storage
+        try {
+          const fileRef = ref(storage, fileToDelete.path);
+          await deleteObject(fileRef);
+        } catch (storageError) {
+          console.warn(`Error deleting file from storage: ${fileToDelete.path}`, storageError);
+        }
+
+        // Delete from Firestore
+        try {
+          await deleteDoc(doc(db, "files", fileId));
+        } catch (firestoreError) {
+          console.warn(`Error deleting file from Firestore: ${fileId}`, firestoreError);
+        }
+      });
+
+      await Promise.all(deletePromises);
+
+      alert(`Berhasil menghapus ${selectedFiles.length} file`);
+      setSelectedFiles([]);
+      calculateStorageUsage();
+    } catch (error) {
+      console.error("Error deleting files:", error);
+      alert("Terjadi error saat menghapus file");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (storageInfo.loading) {
@@ -571,6 +737,213 @@ const StorageUsage = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Files List */}
+      <div
+        style={{
+          backgroundColor: "#f8fafc",
+          padding: "24px",
+          borderRadius: "8px",
+          border: "1px solid #e2e8f0",
+          marginTop: "24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "16px",
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "18px",
+              fontWeight: "600",
+              color: "#1f2937",
+            }}
+          >
+            📋 Daftar File (Urut dari Terbesar)
+          </h3>
+          {selectedFiles.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              disabled={isDeleting}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#dc2626",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: isDeleting ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: "500",
+                opacity: isDeleting ? 0.6 : 1,
+              }}
+            >
+              {isDeleting
+                ? "Menghapus..."
+                : `🗑️ Hapus ${selectedFiles.length} File`}
+            </button>
+          )}
+        </div>
+
+        {filesList.length > 0 && (
+          <div
+            style={{
+              marginBottom: "12px",
+              padding: "12px",
+              backgroundColor: "#f3f4f6",
+              borderRadius: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={selectedFiles.length === filesList.length}
+              onChange={handleSelectAll}
+              style={{
+                width: "18px",
+                height: "18px",
+                cursor: "pointer",
+              }}
+            />
+            <span style={{ fontSize: "14px", fontWeight: "500", color: "#374151" }}>
+              Pilih Semua ({filesList.length} file)
+            </span>
+          </div>
+        )}
+
+        <div
+          style={{
+            maxHeight: "500px",
+            overflowY: "auto",
+            border: "1px solid #e5e7eb",
+            borderRadius: "6px",
+          }}
+        >
+          {filesList.length === 0 ? (
+            <div
+              style={{
+                padding: "48px",
+                textAlign: "center",
+                color: "#6b7280",
+              }}
+            >
+              <div style={{ fontSize: "48px", marginBottom: "16px" }}>📂</div>
+              <p style={{ margin: 0 }}>Tidak ada file ditemukan</p>
+            </div>
+          ) : (
+            filesList.map((file, index) => (
+              <div
+                key={file.id}
+                onDoubleClick={() => {
+                  if (file.url) {
+                    window.open(file.url, "_blank", "noopener,noreferrer");
+                  } else {
+                    alert("URL file tidak tersedia");
+                  }
+                }}
+                title="Double-click untuk membuka file"
+                style={{
+                  padding: "16px",
+                  borderBottom:
+                    index < filesList.length - 1 ? "1px solid #e5e7eb" : "none",
+                  backgroundColor: selectedFiles.includes(file.id)
+                    ? "#eff6ff"
+                    : "white",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  transition: "background-color 0.2s, transform 0.1s",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = selectedFiles.includes(file.id) ? "#dbeafe" : "#f9fafb";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = selectedFiles.includes(file.id) ? "#eff6ff" : "white";
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedFiles.includes(file.id)}
+                  onChange={() => handleSelectFile(file.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      color: "#1f2937",
+                      marginBottom: "4px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {file.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#6b7280",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginTop: "2px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        flex: 1,
+                      }}
+                    >
+                      📁 {extractFolderPath(file.path)}
+                    </span>
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        padding: "2px 8px",
+                        backgroundColor: "#e0e7ff",
+                        borderRadius: "4px",
+                        fontSize: "11px",
+                        color: "#4338ca",
+                        fontWeight: "500",
+                      }}
+                    >
+                      👤 {getUserDisplayName(file.userId)}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    color: "#3b82f6",
+                    flexShrink: 0,
+                  }}
+                >
+                  {formatBytes(file.size)}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Super Admin Information */}
