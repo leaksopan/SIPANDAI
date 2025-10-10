@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { getStorage, ref, listAll, getMetadata } from "firebase/storage";
-import app from "../firebase/config";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import app, { db } from "../firebase/config";
 import useAuth from "../hooks/useAuth";
 import useUserRole from "../hooks/useUserRole";
 
@@ -37,48 +38,41 @@ const StorageUsage = () => {
       let totalSize = 0;
       let fileCount = 0;
 
-      // Fungsi rekursif untuk menghitung semua file di storage
-      const calculateFolderSize = async (folderRef) => {
-        try {
-          const result = await listAll(folderRef);
-
-          // Hitung file di folder ini
-          for (const itemRef of result.items) {
-            try {
-              const metadata = await getMetadata(itemRef);
-              totalSize += metadata.size;
-              fileCount++;
-            } catch (error) {
-              console.warn(
-                `Error getting metadata for ${itemRef.fullPath}:`,
-                error
-              );
-            }
-          }
-
-          // Rekursif untuk subfolder
-          for (const folderRef of result.prefixes) {
-            await calculateFolderSize(folderRef);
-          }
-        } catch (error) {
-          console.warn(`Error listing folder ${folderRef.fullPath}:`, error);
-        }
-      };
-
       if (isSuperAdmin) {
-        // Super admin dapat melihat storage usage mereka sendiri + informasi sistem
-        const userFolderRef = ref(storage, `users/${user.uid}`);
-        await calculateFolderSize(userFolderRef);
+        // Super admin: Hitung dari Firestore (semua file)
+        try {
+          // Query semua file dari Firestore
+          const filesQuery = query(collection(db, "files"));
+          const filesSnapshot = await getDocs(filesQuery);
 
-        // Set flag khusus untuk super admin
-        setStorageInfo((prev) => ({
-          ...prev,
-          isSuperAdminView: true,
-        }));
+          filesSnapshot.forEach((doc) => {
+            const fileData = doc.data();
+            if (fileData.size) {
+              totalSize += fileData.size;
+              fileCount++;
+            }
+          });
+
+          // Set flag khusus untuk super admin
+          setStorageInfo((prev) => ({
+            ...prev,
+            isSuperAdminView: true,
+          }));
+        } catch (error) {
+          console.warn(
+            "Error accessing Firestore files, falling back to user files:",
+            error
+          );
+          // Fallback: hitung dari folder user sendiri
+          const userResult = await calculateUserStorage();
+          totalSize = userResult.totalSize;
+          fileCount = userResult.fileCount;
+        }
       } else {
-        // User biasa hanya melihat folder mereka sendiri
-        const userFolderRef = ref(storage, `users/${user.uid}`);
-        await calculateFolderSize(userFolderRef);
+        // User biasa: hitung dari folder mereka sendiri
+        const userResult = await calculateUserStorage();
+        totalSize = userResult.totalSize;
+        fileCount = userResult.fileCount;
       }
 
       setStorageInfo({
@@ -96,6 +90,77 @@ const StorageUsage = () => {
         error: error.message,
       });
     }
+  };
+
+  // Fungsi untuk menghitung storage user sendiri
+  const calculateUserStorage = async () => {
+    let totalSize = 0;
+    let fileCount = 0;
+
+    try {
+      // Hitung dari Firestore (file user sendiri)
+      const userFilesQuery = query(
+        collection(db, "files"),
+        where("userId", "==", user.uid)
+      );
+      const userFilesSnapshot = await getDocs(userFilesQuery);
+
+      userFilesSnapshot.forEach((doc) => {
+        const fileData = doc.data();
+        if (fileData.size) {
+          totalSize += fileData.size;
+          fileCount++;
+        }
+      });
+    } catch (error) {
+      console.warn("Error accessing user files from Firestore:", error);
+      // Fallback: hitung dari Firebase Storage langsung
+      try {
+        const userFolderRef = ref(storage, `users/${user.uid}`);
+        const result = await calculateFolderSize(userFolderRef);
+        totalSize = result.totalSize;
+        fileCount = result.fileCount;
+      } catch (storageError) {
+        console.warn("Error accessing user storage folder:", storageError);
+      }
+    }
+
+    return { totalSize, fileCount };
+  };
+
+  // Fungsi rekursif untuk menghitung folder di storage (fallback)
+  const calculateFolderSize = async (folderRef) => {
+    let totalSize = 0;
+    let fileCount = 0;
+
+    try {
+      const result = await listAll(folderRef);
+
+      // Hitung file di folder ini
+      for (const itemRef of result.items) {
+        try {
+          const metadata = await getMetadata(itemRef);
+          totalSize += metadata.size;
+          fileCount++;
+        } catch (error) {
+          console.warn(
+            `Error getting metadata for ${itemRef.fullPath}:`,
+            error
+          );
+        }
+      }
+
+      // Rekursif untuk subfolder
+      for (const subFolderRef of result.prefixes) {
+        const subResult = await calculateFolderSize(subFolderRef);
+        totalSize += subResult.totalSize;
+        fileCount += subResult.fileCount;
+      }
+    } catch (error) {
+      console.warn(`Error listing folder ${folderRef.fullPath}:`, error);
+    }
+
+    return { totalSize, fileCount };
   };
 
   useEffect(() => {
@@ -222,7 +287,7 @@ const StorageUsage = () => {
             }}
           >
             {storageInfo.isSuperAdminView
-              ? "Monitor penggunaan storage Anda (Super Admin: gunakan Firebase Console untuk monitoring sistem lengkap)"
+              ? "Monitor penggunaan storage sistem secara keseluruhan (semua user + shared + public folders)"
               : "Monitor penggunaan Cloud Storage untuk file Anda"}
           </p>
         </div>
@@ -536,28 +601,29 @@ const StorageUsage = () => {
             style={{ fontSize: "14px", color: "#6b7280", lineHeight: "1.5" }}
           >
             <p style={{ margin: "0 0 8px 0" }}>
-              <strong>Limitation Firebase Storage Security Rules:</strong> Untuk
-              alasan keamanan, Firebase tidak mengizinkan akses ke folder{" "}
-              <code>users/</code> secara keseluruhan melalui client-side API.
-            </p>
-            <p style={{ margin: "0 0 8px 0" }}>
-              <strong>Alternatif monitoring:</strong>
+              <strong>Super Admin Storage Monitoring:</strong> Data di atas
+              menunjukkan penggunaan storage sistem secara keseluruhan,
+              termasuk:
             </p>
             <ul style={{ margin: "0 0 8px 0", paddingLeft: "20px" }}>
               <li>
-                Gunakan Firebase Console → Storage untuk monitoring lengkap
+                <strong>users/</strong> - Semua file dari semua user
               </li>
               <li>
-                Implementasi Firebase Cloud Functions untuk server-side
-                monitoring
+                <strong>shared/</strong> - File yang dibagikan antar user
               </li>
               <li>
-                Buat sistem tracking terpisah di Firestore untuk metadata file
+                <strong>public/</strong> - File publik yang dapat diakses semua
+                user
               </li>
             </ul>
+            <p style={{ margin: "0 0 8px 0" }}>
+              <strong>Catatan:</strong> Jika ada error dalam mengakses storage
+              sistem, akan otomatis fallback ke folder user Anda sendiri.
+            </p>
             <p style={{ margin: 0 }}>
-              Data di atas menunjukkan penggunaan storage untuk akun Super Admin
-              Anda sendiri.
+              <strong>Firebase Console:</strong> Untuk monitoring yang lebih
+              detail, gunakan Firebase Console → Storage.
             </p>
           </div>
         </div>
