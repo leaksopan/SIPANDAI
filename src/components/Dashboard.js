@@ -82,7 +82,7 @@ const Dashboard = () => {
                 fontSize: "16px",
               }}
             >
-              Sistem Manajemen Arsip Terpusat-IrbanDua
+              Sistem Manajemen Arsip Terpusat-Irban Dua
             </p>
           </div>
         </div>
