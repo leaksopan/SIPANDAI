@@ -32,10 +32,14 @@ const UserManagement = () => {
         id: doc.id,
         ...doc.data(),
       }));
-      // Sort users: letters A-Z first, then numbers largest to smallest
+      // Sort users: 'Putu Lia' first, then letters A-Z, then numbers largest to smallest
       const sortedUsers = usersList.sort((a, b) => {
         const nameA = (a.displayName || "No Name").toLowerCase();
         const nameB = (b.displayName || "No Name").toLowerCase();
+
+        // 'Putu Lia' always first
+        if (nameA === "putu lia") return -1;
+        if (nameB === "putu lia") return 1;
 
         const isNumberA = /^\d/.test(nameA);
         const isNumberB = /^\d/.test(nameB);
